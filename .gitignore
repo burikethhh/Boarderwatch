@@ -1,0 +1,15 @@
+node_modules/
+client/node_modules/
+server/node_modules/
+client/dist/
+server/data/
+server/streams/
+server/uploads/
+*.db
+.env
+.env.local
+.DS_Store
+Thumbs.db
+docx_extracted/
+temp.zip
+BoardersWatch_FINAL_FIXED.docx
