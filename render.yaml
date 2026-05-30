@@ -1,16 +1,14 @@
 services:
   - type: web
-    name: boarderswatch-api
+    name: boarderswatch
     runtime: node
     plan: free
+    region: singapore
     buildCommand: cd server && npm install
     startCommand: cd server && node src/index.js
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: DB_PATH
-        value: ./data/boarderswatch.db
-      - key: CLIENT_URL
-        sync: false
