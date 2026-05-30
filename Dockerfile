@@ -1,16 +1,14 @@
-FROM node:18-alpine
+FROM node:18
 
-WORKDIR /app
+WORKDIR /app/server
 
-# Copy server files
-COPY server/package*.json ./server/
-RUN cd server && npm install --omit=dev
+COPY server/package*.json ./
+RUN npm install
 
-COPY server/ ./server/
+COPY server/ .
 
-# Create data directory
-RUN mkdir -p server/data server/streams server/uploads
+RUN mkdir -p data streams uploads
 
 EXPOSE 3000
 
-CMD ["node", "server/src/index.js"]
+CMD ["node", "src/index.js"]
