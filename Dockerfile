@@ -6,16 +6,25 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app/server
+WORKDIR /app
 
-COPY server/package*.json ./
-RUN npm install
-RUN npm rebuild better-sqlite3
+# Install client dependencies and build
+COPY client/package*.json ./client/
+RUN cd client && npm install
+COPY client/ ./client/
+RUN cd client && npm run build
 
-COPY server/ .
+# Install server dependencies
+COPY server/package*.json ./server/
+RUN cd server && npm install
+RUN cd server && npm rebuild better-sqlite3
 
-RUN mkdir -p data streams uploads
+# Copy server source
+COPY server/ ./server/
+
+# Create data directories
+RUN mkdir -p server/data server/streams server/uploads
 
 EXPOSE 3000
 
-CMD ["node", "src/index.js"]
+CMD ["node", "server/src/index.js"]
