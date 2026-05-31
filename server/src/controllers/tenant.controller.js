@@ -87,7 +87,21 @@ exports.remove = (req, res) => {
   const tenant = db.prepare('SELECT * FROM tenants WHERE tenant_id = ?').get(req.params.id);
   if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-  db.prepare('UPDATE tenants SET status = ? WHERE tenant_id = ?').run('inactive', req.params.id);
+  const transaction = db.transaction(() => {
+    // Deactivate tenant
+    db.prepare('UPDATE tenants SET status = ? WHERE tenant_id = ?').run('inactive', req.params.id);
+
+    // Terminate active leases and free rooms
+    const activeLeases = db.prepare("SELECT lease_id, room_id FROM leases WHERE tenant_id = ? AND status IN ('active', 'expiring_soon')").all(req.params.id);
+    for (const lease of activeLeases) {
+      db.prepare("UPDATE leases SET status = 'expired' WHERE lease_id = ?").run(lease.lease_id);
+      if (lease.room_id) {
+        db.prepare("UPDATE rooms SET status = 'available' WHERE room_id = ?").run(lease.room_id);
+      }
+    }
+  });
+
+  transaction();
 
   db.prepare('INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')
     .run(req.user.user_id, 'DELETE', 'tenant', tenant.tenant_id, `Deactivated tenant: ${tenant.first_name} ${tenant.last_name}`);

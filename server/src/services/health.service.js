@@ -27,7 +27,7 @@ async function checkCameraHealth() {
 
         db.prepare('INSERT INTO notifications (type, title, message, channel) VALUES (?, ?, ?, ?)')
           .run(
-            'motion_detected',
+            'camera_offline',
             `Camera Offline - ${camera.camera_name}`,
             `${camera.camera_name} at ${camera.location || 'unknown location'} is no longer reachable`,
             'system'

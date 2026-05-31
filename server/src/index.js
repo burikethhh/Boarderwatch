@@ -105,7 +105,7 @@ app.get('/api/stream/:cameraId', (req, res) => {
 if ((process.env.NODE_ENV || '').trim() === 'production') {
   console.log('[BoardersWatch] Serving static frontend');
   app.use(express.static(path.join(__dirname, '../../client/dist')));
-  app.get('/{*splat}', (req, res) => {
+  app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
   });
 }

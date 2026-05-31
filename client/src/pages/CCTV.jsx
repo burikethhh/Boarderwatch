@@ -142,7 +142,7 @@ export default function CCTV() {
                 <span>{cam.ip_address}:{cam.port}</span>
               </div>
               <div className="flex gap-2">
-                <button className="flex-1 py-2 bg-surface-2 border border-border rounded-lg text-text-secondary hover:text-white hover:border-border-hover text-[13px] transition">Test</button>
+                <button onClick={() => api.post(`/cameras/${cam.camera_id}/test`).then(() => refresh()).catch(() => {})} className="flex-1 py-2 bg-surface-2 border border-border rounded-lg text-text-secondary hover:text-white hover:border-border-hover text-[13px] transition">Test</button>
                 <button className="py-2 px-3 bg-surface-2 border border-border rounded-lg text-text-secondary hover:text-white hover:border-border-hover transition"><IconSettings className="w-4 h-4" /></button>
               </div>
             </div>

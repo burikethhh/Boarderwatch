@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { IconPlus, IconEdit, IconDoor } from '../components/Icons';
+import { IconPlus, IconEdit, IconDoor, IconTrash } from '../components/Icons';
 
 export default function Rooms() {
   const [rooms, setRooms] = useState([]);
@@ -25,7 +25,13 @@ export default function Rooms() {
     load();
   };
 
-  const handleEdit = (room) => { setForm(room); setEditing(room); setShowForm(true); };
+  const handleEdit = (room) => { setForm({ room_number: room.room_number, floor: room.floor, type: room.type, capacity: room.capacity, monthly_rate: room.monthly_rate, amenities: room.amenities }); setEditing(room); setShowForm(true); };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this room?')) return;
+    await api.delete(`/rooms/${id}`);
+    load();
+  };
 
   const statusStyles = {
     available: 'border-white/20 bg-white/5',
@@ -100,6 +106,9 @@ export default function Rooms() {
             </div>
             <button onClick={() => handleEdit(room)} className="mt-4 w-full py-2 bg-surface-2 border border-border rounded-lg text-text-secondary hover:text-white hover:border-border-hover text-sm transition flex items-center justify-center gap-2">
               <IconEdit className="w-3.5 h-3.5" /> Edit
+            </button>
+            <button onClick={() => handleDelete(room.room_id)} className="mt-2 w-full py-2 bg-surface-2 border border-border rounded-lg text-text-secondary hover:text-white hover:border-border-hover text-sm transition flex items-center justify-center gap-2">
+              <IconTrash className="w-3.5 h-3.5" /> Delete
             </button>
           </div>
         ))}

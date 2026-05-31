@@ -2,7 +2,7 @@ const { getDatabase } = require('../config/database');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 
-exports.tenantReport = (req, res) => {
+exports.tenantReport = async (req, res) => {
   const db = getDatabase();
   const { format } = req.query;
 
@@ -26,7 +26,7 @@ exports.tenantReport = (req, res) => {
   res.json(tenants);
 };
 
-exports.paymentReport = (req, res) => {
+exports.paymentReport = async (req, res) => {
   const db = getDatabase();
   const { format, start_date, end_date } = req.query;
 
@@ -64,7 +64,7 @@ exports.paymentReport = (req, res) => {
   res.json({ payments, total });
 };
 
-exports.occupancyReport = (req, res) => {
+exports.occupancyReport = async (req, res) => {
   const db = getDatabase();
   const { format } = req.query;
 
@@ -124,7 +124,7 @@ exports.securityReport = (req, res) => {
   res.json({ alerts, stats });
 };
 
-function exportTenantsExcel(res, tenants) {
+async function exportTenantsExcel(res, tenants) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Tenants');
 
@@ -152,7 +152,8 @@ function exportTenantsExcel(res, tenants) {
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', 'attachment; filename=tenants_report.xlsx');
-  workbook.xlsx.write(res);
+  await workbook.xlsx.write(res);
+  res.end();
 }
 
 function exportTenantsPDF(res, tenants) {
@@ -176,7 +177,7 @@ function exportTenantsPDF(res, tenants) {
   doc.end();
 }
 
-function exportPaymentsExcel(res, payments, total) {
+async function exportPaymentsExcel(res, payments, total) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Payments');
 
@@ -189,13 +190,23 @@ function exportPaymentsExcel(res, payments, total) {
     { header: 'Type', key: 'payment_type', width: 10 },
   ];
 
-  payments.forEach(p => sheet.addRow(p));
+  payments.forEach(p => {
+    sheet.addRow({
+      receipt_number: p.receipt_number,
+      tenant_name: p.tenant_name || '-',
+      amount: p.amount,
+      payment_date: p.payment_date,
+      payment_method: p.payment_method,
+      payment_type: p.payment_type,
+    });
+  });
   sheet.addRow({});
   sheet.addRow({ receipt_number: 'TOTAL', amount: total });
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', 'attachment; filename=payments_report.xlsx');
-  workbook.xlsx.write(res);
+  await workbook.xlsx.write(res);
+  res.end();
 }
 
 function exportPaymentsPDF(res, payments, total) {
@@ -218,7 +229,7 @@ function exportPaymentsPDF(res, payments, total) {
   doc.end();
 }
 
-function exportOccupancyExcel(res, stats, rooms) {
+async function exportOccupancyExcel(res, stats, rooms) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Occupancy');
 
@@ -238,11 +249,20 @@ function exportOccupancyExcel(res, stats, rooms) {
     { header: 'Tenant', key: 'tenant_name', width: 25 },
   ];
 
-  rooms.forEach(r => sheet.addRow(r));
+  rooms.forEach(r => {
+    sheet.addRow({
+      room_number: r.room_number,
+      type: r.type,
+      monthly_rate: r.monthly_rate,
+      status: r.status,
+      tenant_name: r.tenant_name || '-',
+    });
+  });
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', 'attachment; filename=occupancy_report.xlsx');
-  workbook.xlsx.write(res);
+  await workbook.xlsx.write(res);
+  res.end();
 }
 
 function exportOccupancyPDF(res, stats, rooms) {

@@ -1,11 +1,11 @@
 const { getDatabase } = require('../config/database');
+const { BRAND_PRESETS } = require('../config/brandPresets');
 const cameraService = require('../services/camera.service');
 
 // Get all settings
 exports.getSettings = (req, res) => {
   const db = getDatabase();
 
-  // Create settings table if not exists
   db.exec(`CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT,
@@ -15,14 +15,6 @@ exports.getSettings = (req, res) => {
   const rows = db.prepare('SELECT * FROM settings').all();
   const settings = {};
   rows.forEach(r => { settings[r.key] = r.value; });
-
-  // Camera brand presets
-  const BRAND_PRESETS = {
-    tapo: { name: 'TP-Link Tapo', rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}/{stream}', defaultPort: 554, streams: { high: 'stream1', standard: 'stream2' } },
-    hikvision: { name: 'Hikvision', rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}/ISAPI/streaming/channels/101', defaultPort: 554, streams: { high: '101', standard: '102' } },
-    dahua: { name: 'Dahua', rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}/cam/realmonitor?channel=1&subtype=0', defaultPort: 554, streams: { high: '0', standard: '1' } },
-    generic: { name: 'Generic RTSP', rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}{streamPath}', defaultPort: 554, streams: { high: '/stream1', standard: '/stream2' } },
-  };
 
   res.json({ settings, presets: BRAND_PRESETS });
 };
@@ -100,13 +92,6 @@ exports.bulkUpdateRooms = (req, res) => {
 // Camera connection test
 exports.testCamera = async (req, res) => {
   const { rtsp_url, brand, ip_address, username, password, port, stream_path } = req.body;
-
-  const BRAND_PRESETS = {
-    tapo: { rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}/{stream}', defaultPort: 554, streams: { high: 'stream1' } },
-    hikvision: { rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}/ISAPI/streaming/channels/101', defaultPort: 554, streams: { high: '101' } },
-    dahua: { rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}/cam/realmonitor?channel=1&subtype=0', defaultPort: 554, streams: { high: '0' } },
-    generic: { rtspFormat: 'rtsp://{user}:{pass}@{ip}:{port}{streamPath}', defaultPort: 554, streams: { high: '/stream1' } },
-  };
 
   // Build RTSP URL
   let url = rtsp_url;

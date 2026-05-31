@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-# BoardersWatch - Quick Deploy Script
-# Run this to build frontend and start the server
-
+set -e
 echo "=== BoardersWatch Deployment ==="
 
 # Build frontend
 echo "Building frontend..."
 cd client
-npm install
+npm install --silent
 npm run build
 cd ..
 
 # Install server dependencies
 echo "Installing server dependencies..."
 cd server
-npm install
+npm install --silent
+npm rebuild better-sqlite3 2>/dev/null || true
 
 # Seed database if empty
 if [ ! -f "data/boarderswatch.db" ]; then

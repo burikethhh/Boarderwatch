@@ -54,7 +54,13 @@ exports.register = (req, res) => {
   }
 
   const db = getDatabase();
-  const hashedPassword = bcrypt.hashSync(password, 10);
+
+  let hashedPassword;
+  try {
+    hashedPassword = bcrypt.hashSync(password, 10);
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to hash password' });
+  }
 
   try {
     const result = db.prepare('INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, ?)')
@@ -71,7 +77,7 @@ exports.register = (req, res) => {
     if (err.message.includes('UNIQUE constraint')) {
       return res.status(409).json({ error: 'Username or email already exists' });
     }
-    throw err;
+    res.status(500).json({ error: 'Failed to create user' });
   }
 };
 

@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS cctv_alerts (
 CREATE TABLE IF NOT EXISTS notifications (
     notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
     recipient_id INTEGER,
-    type TEXT CHECK(type IN ('motion_detected','lease_expiring','payment_received','tenant_registered')),
+    type TEXT CHECK(type IN ('motion_detected','camera_offline','camera_tampering','lease_expiring','payment_received','tenant_registered')),
     title TEXT,
     message TEXT,
     channel TEXT DEFAULT 'system' CHECK(channel IN ('sms','email','system')),

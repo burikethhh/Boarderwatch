@@ -11,5 +11,6 @@ router.get('/:id', ctrl.getById);
 router.post('/', requireRole('admin'), ctrl.create);
 router.put('/:id', requireRole('admin'), ctrl.update);
 router.post('/:id/renew', requireRole('admin'), ctrl.renew);
+router.delete('/:id', requireRole('admin'), ctrl.remove);
 
 module.exports = router;

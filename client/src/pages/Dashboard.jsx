@@ -123,7 +123,7 @@ export default function Dashboard() {
               {notifications.map(n => (
                 <div key={n.notification_id} className="flex items-start gap-3 p-3 bg-surface-2 rounded-lg border border-border">
                   <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${
-                    n.type === 'motion_detected' ? 'bg-white' :
+                    n.type === 'motion_detected' || n.type === 'camera_offline' || n.type === 'camera_tampering' ? 'bg-white' :
                     n.type === 'lease_expiring' ? 'bg-white/50' :
                     n.type === 'payment_received' ? 'bg-white/70' : 'bg-white/30'
                   }`} />

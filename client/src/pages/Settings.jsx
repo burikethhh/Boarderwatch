@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import {
-  IconSettings, IconCCTV, IconRooms, IconBell, IconUsers, IconCheck,
-  IconX, IconPlus, IconTrash, IconEdit, IconLoader, IconSearch, IconRefresh, IconWifi, IconWifiOff
+  IconSettings, IconCCTV, IconRooms, IconBell, IconCheck,
+  IconX, IconPlus, IconTrash, IconEdit, IconLoader, IconWifi, IconWifiOff
 } from '../components/Icons';
 
 // ========== TAB BUTTON ==========
@@ -46,7 +46,7 @@ function Btn({ children, variant = 'primary', className = '', ...props }) {
     danger: 'bg-white/10 text-white border border-white/20 hover:bg-white/20',
   };
   return (
-    <button {...props} className={`px-4 py-2.5 rounded-lg text-[13px] font-medium transition flex items-center gap-2 ${styles[variant]} ${className}`} {...props}>
+    <button {...props} className={`px-4 py-2.5 rounded-lg text-[13px] font-medium transition flex items-center gap-2 ${styles[variant]} ${className}`}>
       {children}
     </button>
   );

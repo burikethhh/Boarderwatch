@@ -82,6 +82,11 @@ exports.remove = (req, res) => {
   const room = db.prepare('SELECT * FROM rooms WHERE room_id = ?').get(req.params.id);
   if (!room) return res.status(404).json({ error: 'Room not found' });
 
+  const activeLease = db.prepare("SELECT lease_id FROM leases WHERE room_id = ? AND status IN ('active', 'expiring_soon')").get(req.params.id);
+  if (activeLease) {
+    return res.status(400).json({ error: 'Cannot delete room with active lease. End the lease first.' });
+  }
+
   db.prepare('DELETE FROM rooms WHERE room_id = ?').run(req.params.id);
 
   db.prepare('INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')

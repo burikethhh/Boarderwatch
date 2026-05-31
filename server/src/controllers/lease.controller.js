@@ -125,6 +125,24 @@ exports.renew = (req, res) => {
   res.json(updated);
 };
 
+exports.remove = (req, res) => {
+  const db = getDatabase();
+  const lease = db.prepare('SELECT * FROM leases WHERE lease_id = ?').get(req.params.id);
+  if (!lease) return res.status(404).json({ error: 'Lease not found' });
+
+  // Free the room
+  if (lease.room_id) {
+    db.prepare("UPDATE rooms SET status = 'available' WHERE room_id = ?").run(lease.room_id);
+  }
+
+  db.prepare("UPDATE leases SET status = 'expired' WHERE lease_id = ?").run(req.params.id);
+
+  db.prepare('INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')
+    .run(req.user.user_id, 'DELETE', 'lease', lease.lease_id, `Terminated lease: ${lease.lease_number}`);
+
+  res.json({ message: 'Lease terminated' });
+};
+
 exports.getExpiring = (req, res) => {
   const db = getDatabase();
   const leases = db.prepare(`

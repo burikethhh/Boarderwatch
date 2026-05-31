@@ -101,27 +101,66 @@ exports.getReceipt = (req, res) => {
 
 exports.stats = (req, res) => {
   const db = getDatabase();
-  const now = new Date();
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-  const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-31`;
+  const monthStart = "date('now', 'start of month')";
+  const monthEnd = "date('now', 'start of month', '+1 month', '-1 day')";
 
   const collected = db.prepare(
-    "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE payment_date BETWEEN ? AND ?"
-  ).get(monthStart, monthEnd).total;
+    `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE payment_date BETWEEN ${monthStart} AND ${monthEnd}`
+  ).get().total;
 
   const pending = db.prepare(`
     SELECT COALESCE(SUM(l.monthly_rent), 0) as total
     FROM leases l
     WHERE l.status = 'active'
     AND l.lease_id NOT IN (
-      SELECT lease_id FROM payments WHERE payment_date BETWEEN ? AND ?
+      SELECT lease_id FROM payments WHERE payment_date BETWEEN ${monthStart} AND ${monthEnd}
     )
-  `).get(monthStart, monthEnd).total;
+  `).get().total;
 
   const totalLeases = db.prepare("SELECT COUNT(*) as count FROM leases WHERE status = 'active'").get().count;
   const collectionRate = totalLeases > 0 ? Math.round((collected / (collected + pending)) * 100) || 0 : 0;
 
   res.json({ collected, pending, collectionRate });
+};
+
+exports.update = (req, res) => {
+  const db = getDatabase();
+  const payment = db.prepare('SELECT * FROM payments WHERE payment_id = ?').get(req.params.id);
+  if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+  const { lease_id, tenant_name, amount, payment_date, payment_method, payment_type } = req.body;
+
+  db.prepare(
+    'UPDATE payments SET lease_id = ?, tenant_name = ?, amount = ?, payment_date = ?, payment_method = ?, payment_type = ? WHERE payment_id = ?'
+  ).run(
+    lease_id || payment.lease_id,
+    tenant_name !== undefined ? tenant_name : payment.tenant_name,
+    amount || payment.amount,
+    payment_date || payment.payment_date,
+    payment_method || payment.payment_method,
+    payment_type || payment.payment_type,
+    req.params.id
+  );
+
+  const updated = db.prepare('SELECT * FROM payments WHERE payment_id = ?').get(req.params.id);
+
+  db.prepare('INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')
+    .run(req.user.user_id, 'UPDATE', 'payment', updated.payment_id, `Updated payment: ${updated.receipt_number}`);
+
+  res.json(updated);
+};
+
+exports.remove = (req, res) => {
+  const db = getDatabase();
+  const payment = db.prepare('SELECT * FROM payments WHERE payment_id = ?').get(req.params.id);
+  if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+  db.prepare('DELETE FROM payments WHERE payment_id = ?').run(req.params.id);
+
+  db.prepare('INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')
+    .run(req.user.user_id, 'DELETE', 'payment', payment.payment_id, `Deleted payment: ${payment.receipt_number}`);
+
+  res.json({ message: 'Payment deleted' });
 };
 
 exports.recentPayments = (req, res) => {

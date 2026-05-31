@@ -21,6 +21,8 @@ export default function Notifications() {
 
   const typeConfig = {
     motion_detected: { dot: 'bg-white', badge: 'bg-white/10 text-white', label: 'ALERT' },
+    camera_offline: { dot: 'bg-white', badge: 'bg-white/10 text-white', label: 'OFFLINE' },
+    camera_tampering: { dot: 'bg-white', badge: 'bg-white/10 text-white', label: 'TAMPER' },
     lease_expiring: { dot: 'bg-white/50', badge: 'bg-white/5 text-text-secondary', label: 'WARNING' },
     payment_received: { dot: 'bg-white/70', badge: 'bg-white/5 text-text-secondary', label: 'PAYMENT' },
     tenant_registered: { dot: 'bg-white/30', badge: 'bg-white/5 text-text-muted', label: 'INFO' },
