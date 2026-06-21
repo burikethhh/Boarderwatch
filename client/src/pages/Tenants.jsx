@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { IconPlus, IconSearch, IconEdit, IconTrash, IconX, IconLoader } from '../components/Icons';
+import Pagination from '../components/Pagination';
 
 function Modal({ open, onClose, title, children }) {
   if (!open) return null;
@@ -62,14 +63,17 @@ function TenantForm({ tenant, onSubmit, onClose }) {
 
 export default function Tenants() {
   const [tenants, setTenants] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
 
-  const loadTenants = () => api.get('/tenants', { params: { search } }).then(res => setTenants(res.data));
-  useEffect(() => { loadTenants(); }, [search]);
+  const loadTenants = () => api.get('/tenants', { params: { search, page, limit: 20 } }).then(res => { setTenants(res.data.data); setTotal(res.data.total); setPage(res.data.page); setTotalPages(res.data.totalPages); });
+  useEffect(() => { loadTenants(); }, [search, page]);
 
-  const handleCreate = async (form) => { await api.post('/tenants', form); loadTenants(); };
+  const handleCreate = async (form) => { await api.post('/tenants', form); setPage(1); loadTenants(); };
   const handleUpdate = async (form) => { await api.put(`/tenants/${editingTenant.tenant_id}`, form); loadTenants(); };
   const handleDelete = async (id) => { if (!confirm('Deactivate this tenant?')) return; await api.delete(`/tenants/${id}`); loadTenants(); };
 
@@ -78,7 +82,7 @@ export default function Tenants() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Tenants</h1>
-          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{tenants.length} registered</p>
+          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{total} registered</p>
         </div>
         <button onClick={() => { setEditingTenant(null); setModalOpen(true); }} className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-white text-black font-medium rounded-lg text-xs sm:text-sm hover:bg-white/90 transition self-start sm:self-auto">
           <IconPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Add Tenant
@@ -128,6 +132,7 @@ export default function Tenants() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingTenant ? 'Edit Tenant' : 'Add New Tenant'}>

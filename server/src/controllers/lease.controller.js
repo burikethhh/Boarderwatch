@@ -14,29 +14,41 @@ function generateLeaseNumber(db) {
 exports.list = (req, res) => {
   const db = getDatabase();
   const { status, tenant_id } = req.query;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
 
-  let query = `
-    SELECT l.*, t.first_name || ' ' || t.last_name as tenant_name, r.room_number
-    FROM leases l
-    LEFT JOIN tenants t ON l.tenant_id = t.tenant_id
-    LEFT JOIN rooms r ON l.room_id = r.room_id
-    WHERE 1=1
-  `;
+  let where = 'WHERE 1=1';
   const params = [];
 
   if (status) {
-    query += ' AND l.status = ?';
+    where += ' AND l.status = ?';
     params.push(status);
   }
 
   if (tenant_id) {
-    query += ' AND l.tenant_id = ?';
+    where += ' AND l.tenant_id = ?';
     params.push(tenant_id);
   }
 
-  query += ' ORDER BY l.lease_id DESC';
-  const leases = db.prepare(query).all(...params);
-  res.json(leases);
+  const total = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM leases l
+    LEFT JOIN tenants t ON l.tenant_id = t.tenant_id
+    LEFT JOIN rooms r ON l.room_id = r.room_id
+    ${where}
+  `).get(...params).count;
+
+  const data = db.prepare(`
+    SELECT l.*, t.first_name || ' ' || t.last_name as tenant_name, r.room_number
+    FROM leases l
+    LEFT JOIN tenants t ON l.tenant_id = t.tenant_id
+    LEFT JOIN rooms r ON l.room_id = r.room_id
+    ${where}
+    ORDER BY l.lease_id DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+  res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
 };
 
 exports.getById = (req, res) => {

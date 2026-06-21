@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { IconPlus, IconEdit, IconDoor, IconTrash } from '../components/Icons';
+import Pagination from '../components/Pagination';
 
 export default function Rooms() {
   const [rooms, setRooms] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [stats, setStats] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ room_number: '', floor: 1, type: 'single', capacity: 1, monthly_rate: '', amenities: '' });
 
   const load = () => {
-    api.get('/rooms').then(res => setRooms(res.data));
+    api.get('/rooms', { params: { page, limit: 20 } }).then(res => { setRooms(res.data.data); setTotal(res.data.total); setPage(res.data.page); setTotalPages(res.data.totalPages); });
     api.get('/rooms/stats').then(res => setStats(res.data));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [page]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,7 +54,7 @@ export default function Rooms() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Rooms</h1>
-          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{rooms.length} rooms total</p>
+          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{total} rooms total</p>
         </div>
         <button onClick={() => { setEditing(null); setForm({ room_number: '', floor: 1, type: 'single', capacity: 1, monthly_rate: '', amenities: '' }); setShowForm(true); }} className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-white text-black font-medium rounded-lg text-xs sm:text-sm hover:bg-white/90 transition self-start sm:self-auto">
           <IconPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Add Room
@@ -113,6 +117,8 @@ export default function Rooms() {
           </div>
         ))}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       {showForm && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-3 sm:p-4 backdrop-blur-sm" onClick={() => setShowForm(false)}>

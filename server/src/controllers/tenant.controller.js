@@ -3,24 +3,27 @@ const { getDatabase } = require('../config/database');
 exports.list = (req, res) => {
   const db = getDatabase();
   const { search, status } = req.query;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
 
-  let query = 'SELECT * FROM tenants WHERE 1=1';
+  let where = 'WHERE 1=1';
   const params = [];
 
   if (search) {
-    query += ' AND (first_name LIKE ? OR last_name LIKE ? OR phone_number LIKE ?)';
+    where += ' AND (first_name LIKE ? OR last_name LIKE ? OR phone_number LIKE ?)';
     const s = `%${search}%`;
     params.push(s, s, s);
   }
 
   if (status) {
-    query += ' AND status = ?';
+    where += ' AND status = ?';
     params.push(status);
   }
 
-  query += ' ORDER BY created_at DESC';
-  const tenants = db.prepare(query).all(...params);
-  res.json(tenants);
+  const total = db.prepare(`SELECT COUNT(*) as count FROM tenants ${where}`).get(...params).count;
+  const data = db.prepare(`SELECT * FROM tenants ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
 };
 
 exports.getById = (req, res) => {

@@ -379,7 +379,7 @@ function RoomTab() {
   const [newRoom, setNewRoom] = useState({ room_number: '', floor: 1, type: 'single', capacity: 1, monthly_rate: '', amenities: '' });
 
   const load = () => {
-    api.get('/rooms').then(res => setRooms(res.data));
+    api.get('/rooms', { params: { limit: 100 } }).then(res => setRooms(res.data.data || res.data));
     api.get('/rooms/stats').then(res => setStats(res.data));
   };
 

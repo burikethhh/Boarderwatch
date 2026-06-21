@@ -1,21 +1,25 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { IconPlus, IconRefresh, IconTrash } from '../components/Icons';
+import Pagination from '../components/Pagination';
 
 export default function Leases() {
   const [leases, setLeases] = useState([]);
+  const [totalLeases, setTotalLeases] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [tenants, setTenants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ tenant_id: '', room_id: '', start_date: '', end_date: '', monthly_rent: '' });
 
   const load = () => {
-    api.get('/leases').then(res => setLeases(res.data));
-    api.get('/tenants').then(res => setTenants(res.data));
-    api.get('/rooms').then(res => setRooms(res.data));
+    api.get('/leases', { params: { page, limit: 20 } }).then(res => { setLeases(res.data.data); setTotalLeases(res.data.total); setPage(res.data.page); setTotalPages(res.data.totalPages); });
+    api.get('/tenants', { params: { status: 'active', limit: 100 } }).then(res => setTenants(res.data.data || res.data));
+    api.get('/rooms', { params: { status: 'available', limit: 100 } }).then(res => setRooms(res.data.data || res.data));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [page]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -49,7 +53,7 @@ export default function Leases() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Leases</h1>
-          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{leases.length} total</p>
+          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{totalLeases} total</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-white text-black font-medium rounded-lg text-xs sm:text-sm hover:bg-white/90 transition self-start sm:self-auto">
           <IconPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Create Lease
@@ -104,6 +108,8 @@ export default function Leases() {
           </table>
         </div>
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       {showForm && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-3 sm:p-4 backdrop-blur-sm" onClick={() => setShowForm(false)}>

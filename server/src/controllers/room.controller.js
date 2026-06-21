@@ -3,23 +3,26 @@ const { getDatabase } = require('../config/database');
 exports.list = (req, res) => {
   const db = getDatabase();
   const { status, floor } = req.query;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
 
-  let query = 'SELECT * FROM rooms WHERE 1=1';
+  let where = 'WHERE 1=1';
   const params = [];
 
   if (status) {
-    query += ' AND status = ?';
+    where += ' AND status = ?';
     params.push(status);
   }
 
   if (floor) {
-    query += ' AND floor = ?';
+    where += ' AND floor = ?';
     params.push(floor);
   }
 
-  query += ' ORDER BY room_number ASC';
-  const rooms = db.prepare(query).all(...params);
-  res.json(rooms);
+  const total = db.prepare(`SELECT COUNT(*) as count FROM rooms ${where}`).get(...params).count;
+  const data = db.prepare(`SELECT * FROM rooms ${where} ORDER BY room_number ASC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
 };
 
 exports.getById = (req, res) => {

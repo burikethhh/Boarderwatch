@@ -15,28 +15,39 @@ function generateReceiptNumber(db) {
 exports.list = (req, res) => {
   const db = getDatabase();
   const { lease_id, payment_type } = req.query;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
 
-  let query = `
-    SELECT p.*, l.lease_number, l.monthly_rent
-    FROM payments p
-    LEFT JOIN leases l ON p.lease_id = l.lease_id
-    WHERE 1=1
-  `;
+  let where = 'WHERE 1=1';
   const params = [];
 
   if (lease_id) {
-    query += ' AND p.lease_id = ?';
+    where += ' AND p.lease_id = ?';
     params.push(lease_id);
   }
 
   if (payment_type) {
-    query += ' AND p.payment_type = ?';
+    where += ' AND p.payment_type = ?';
     params.push(payment_type);
   }
 
-  query += ' ORDER BY p.payment_date DESC';
-  const payments = db.prepare(query).all(...params);
-  res.json(payments);
+  const total = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM payments p
+    LEFT JOIN leases l ON p.lease_id = l.lease_id
+    ${where}
+  `).get(...params).count;
+
+  const data = db.prepare(`
+    SELECT p.*, l.lease_number, l.monthly_rent
+    FROM payments p
+    LEFT JOIN leases l ON p.lease_id = l.lease_id
+    ${where}
+    ORDER BY p.payment_date DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
+  res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
 };
 
 exports.getById = (req, res) => {
