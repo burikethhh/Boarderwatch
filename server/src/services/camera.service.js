@@ -77,10 +77,12 @@ function startStream(camera) {
     status: 'starting',
   };
 
+  streamInfo.stderrLog = '';
   ffmpeg.stdout.on('data', () => {});
   ffmpeg.stderr.on('data', (data) => {
     const msg = data.toString();
-    streamInfo.lastStderr = msg.trim().slice(-300);
+    streamInfo.stderrLog = ((streamInfo.stderrLog || '') + msg).slice(-2000);
+    streamInfo.lastStderr = streamInfo.stderrLog;
     if (msg.includes('frame=') || msg.includes('Opening') || msg.includes('EXTINF')) {
       streamInfo.status = 'streaming';
     }
@@ -224,7 +226,7 @@ function probeCamera(rtspUrl, timeout = 18000) {
             codec: codecMatch ? codecMatch[1] : 'unknown',
           });
         } else {
-          resolve({ reachable: false, error: `FFmpeg exit code: ${code}` });
+          resolve({ reachable: false, error: `FFmpeg exit code: ${code} - ${(stderr.slice(-400).trim() || 'no stderr')}` });
         }
       }
     });
@@ -233,7 +235,7 @@ function probeCamera(rtspUrl, timeout = 18000) {
       if (!resolved) {
         clearTimeout(timer);
         resolved = true;
-        resolve({ reachable: false, error: err.message });
+        resolve({ reachable: false, error: `Spawn error: ${err.message}` });
       }
     });
   });
