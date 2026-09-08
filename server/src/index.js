@@ -42,6 +42,13 @@ try {
   console.error('[BoardersWatch] Seed error:', e.message);
 }
 
+// Clean up legacy preloaded demo cameras
+try {
+  db.prepare("DELETE FROM cctv_cameras WHERE camera_id IN (1, 2) AND (camera_name LIKE '%CAM 1%' OR camera_name LIKE '%CAM 2%')").run();
+  db.prepare("DELETE FROM cctv_alerts WHERE camera_id IN (1, 2)").run();
+} catch (e) {}
+
+
 // Middleware
 app.use(cors({
   origin: (process.env.NODE_ENV || '').trim() === 'production'

@@ -113,30 +113,8 @@ const insertPayment = db.prepare('INSERT OR REPLACE INTO payments (payment_id, r
 payments.forEach(p => insertPayment.run(p.id, p.receipt, p.lease_id, p.tenant, p.amount, p.date, p.method, p.type));
 console.log(`  Initialized ${payments.length} payment records (Total: ₱24,000)`);
 
-// 7. Configure Cameras (Preset for TP-Link Tapo C200)
-const cameras = [
-  { id: 1, name: 'CAM 1 - MAIN ENTRANCE (Tapo C200)', location: 'Front Gate / Main Entrance', brand: 'tapo', ip: '192.168.1.101', user: 'admin', pass: 'admin123', port: 554, stream: 'stream1' },
-  { id: 2, name: 'CAM 2 - HALLWAY A (Tapo C200)', location: 'Second Floor Corridor', brand: 'tapo', ip: '192.168.1.102', user: 'admin', pass: 'admin123', port: 554, stream: 'stream1' },
-];
-
-const insertCamera = db.prepare(`
-  INSERT OR REPLACE INTO cctv_cameras
-  (camera_id, camera_name, location, brand, rtsp_url, username, password_encrypted, ip_address, port, stream_path, motion_detection, alert_threshold, status)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'medium', 'active')
-`);
-
-cameras.forEach(c => {
-  const rtspUrl = `rtsp://${c.user}:${c.pass}@${c.ip}:${c.port}/${c.stream}`;
-  insertCamera.run(c.id, c.name, c.location, c.brand, rtspUrl, c.user, c.pass, c.ip, c.port, c.stream);
-});
-console.log(`  Initialized ${cameras.length} CCTV cameras with Tapo C200 preset`);
-
-// 8. Create 1 Active Security Alert (matching Figure 15 & 20)
-db.prepare('DELETE FROM cctv_alerts WHERE alert_id = 1').run();
-db.prepare(`
-  INSERT OR REPLACE INTO cctv_alerts (alert_id, camera_id, alert_type, description, timestamp, is_acknowledged)
-  VALUES (1, 1, 'motion', 'Motion Detected! Camera 1 - Main Entrance detected unexpected movement near front gate', datetime('now', '-5 minutes'), 0)
-`).run();
+// 7. Configure Cameras (Left empty - connect real cameras dynamically)
+console.log('  CCTV cameras left empty for live device pairing');
 
 // 9. Create System Notifications
 const notifications = [

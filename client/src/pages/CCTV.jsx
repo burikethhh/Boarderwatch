@@ -4,7 +4,7 @@ import { usePolling } from '../hooks/usePolling';
 import {
   IconPlus, IconCCTV, IconWifi, IconWifiOff, IconAlertTriangle,
   IconSettings, IconRefresh, IconLoader, IconX, IconEye, IconCheck,
-  IconRadar, IconSearch
+  IconRadar, IconSearch, IconTrash, IconEdit
 } from '../components/Icons';
 
 function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
@@ -178,6 +178,7 @@ export default function CCTV() {
   const [cameras, setCameras] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingCamera, setEditingCamera] = useState(null);
   const [showTapoGuide, setShowTapoGuide] = useState(false);
   const [presets, setPresets] = useState({});
   const [testResult, setTestResult] = useState(null);
@@ -267,12 +268,53 @@ export default function CCTV() {
     } catch {}
   };
 
-  const handleCreate = async (e) => {
+  const handleSaveCamera = async (e) => {
     e.preventDefault();
-    await api.post('/cameras', form);
-    setShowForm(false);
-    refresh();
+    try {
+      if (editingCamera) {
+        await api.put(`/cameras/${editingCamera.camera_id}`, form);
+      } else {
+        await api.post('/cameras', form);
+      }
+      setShowForm(false);
+      setEditingCamera(null);
+      refresh();
+    } catch (err) {
+      console.error('Save camera failed:', err);
+    }
   };
+
+  const handleEditCamera = (cam) => {
+    setEditingCamera(cam);
+    setForm({
+      camera_name: cam.camera_name,
+      location: cam.location || '',
+      brand: cam.brand || 'tapo',
+      ip_address: cam.ip_address,
+      username: cam.username || '',
+      password: '',
+      port: cam.port || 554,
+      stream_path: (cam.stream_path || 'stream1').replace(/^\/+/, ''),
+      motion_detection: cam.motion_detection !== undefined ? cam.motion_detection : 1,
+      alert_threshold: cam.alert_threshold || 'medium',
+    });
+    setTestResult(null);
+    setShowForm(true);
+  };
+
+  const handleDeleteCamera = async (camId) => {
+    if (!window.confirm('Are you sure you want to remove this camera from the system?')) return;
+    try {
+      await api.delete(`/cameras/${camId}`);
+      if (streamingCameras.has(camId)) {
+        handleStopStream(camId);
+      }
+      refresh();
+    } catch (err) {
+      console.error('Delete camera failed:', err);
+    }
+  };
+
 
   const handleTest = async () => {
     setTesting(true);
@@ -583,6 +625,20 @@ export default function CCTV() {
                 >
                   Test Connection
                 </button>
+                <button
+                  onClick={() => handleEditCamera(cam)}
+                  className="p-2 bg-surface-2 border border-border text-text-secondary hover:text-white hover:border-border-hover rounded-lg text-xs transition"
+                  title="Edit Camera Settings"
+                >
+                  <IconEdit className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleDeleteCamera(cam.camera_id)}
+                  className="p-2 bg-red-500/10 border border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg text-xs transition"
+                  title="Remove Camera from System"
+                >
+                  <IconTrash className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           </div>
@@ -615,8 +671,8 @@ export default function CCTV() {
           >
             <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold text-white">Add IP Camera (Tapo C200 / RTSP)</h3>
-                <p className="text-text-muted text-xs mt-0.5">Configure RTSP stream parameters for live playback</p>
+                <h3 className="text-base font-semibold text-white">{editingCamera ? 'Edit IP Camera Settings' : 'Add IP Camera (Tapo C200 / RTSP)'}</h3>
+                <p className="text-text-muted text-xs mt-0.5">{editingCamera ? 'Update RTSP configuration parameters' : 'Configure RTSP stream parameters for live playback'}</p>
               </div>
               <button onClick={() => setShowForm(false)} className="p-1 text-text-muted hover:text-white">
                 <IconX className="w-4 h-4" />
@@ -752,11 +808,11 @@ export default function CCTV() {
                 Cancel
               </button>
               <button
-                onClick={handleCreate}
+                onClick={handleSaveCamera}
                 disabled={!form.camera_name || !form.ip_address}
                 className="px-5 py-2 bg-white text-black font-semibold rounded-lg text-xs hover:bg-white/90 disabled:opacity-40 transition"
               >
-                Save Camera
+                {editingCamera ? 'Update Camera' : 'Save Camera'}
               </button>
             </div>
           </div>
