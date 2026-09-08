@@ -42,11 +42,11 @@ function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
             backBufferLength: 4,
             liveSyncDurationCount: 2,
             liveMaxLatencyDurationCount: 4,
-            manifestLoadingMaxRetry: 25,
-            manifestLoadingRetryDelay: 1000,
-            manifestLoadingMaxRetryTimeout: 35000,
-            levelLoadingMaxRetry: 25,
-            levelLoadingRetryDelay: 1000,
+            manifestLoadingMaxRetry: 50,
+            manifestLoadingRetryDelay: 1500,
+            manifestLoadingMaxRetryTimeout: 60000,
+            levelLoadingMaxRetry: 50,
+            levelLoadingRetryDelay: 1500,
           });
           hlsRef.current = hls;
           hls.loadSource(src);
@@ -62,9 +62,16 @@ function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
                   setIsBuffering(true);
                   setTimeout(() => {
                     if (!isCancelled && hlsRef.current) {
-                      hls.startLoad();
+                      if (
+                        data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+                        data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
+                      ) {
+                        hls.loadSource(src);
+                      } else {
+                        hls.startLoad();
+                      }
                     }
-                  }, 1200);
+                  }, 1500);
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   hls.recoverMediaError();

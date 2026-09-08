@@ -11,6 +11,7 @@ if (!fs.existsSync(STREAM_DIR)) {
 
 // Store active streams
 const activeStreams = new Map();
+const lastStreamResults = new Map();
 
 /**
  * Get FFmpeg binary path (uses ffmpeg-static if available, ensures execute permissions)
@@ -48,6 +49,7 @@ function startStream(camera) {
     '-fflags', 'nobuffer',
     '-flags', 'low_delay',
     '-rtsp_transport', 'tcp',
+    '-stimeout', '15000000',
     '-i', camera.rtsp_url,
     '-an', // Disable audio for lightweight RTSP transcoding
     '-c:v', 'libx264',
@@ -74,8 +76,6 @@ function startStream(camera) {
     startedAt: new Date(),
     status: 'starting',
   };
-
-const lastStreamResults = new Map();
 
   ffmpeg.stdout.on('data', () => {});
   ffmpeg.stderr.on('data', (data) => {
@@ -144,10 +144,18 @@ function stopAllStreams() {
 function getStreamStatus(cameraId) {
   const stream = activeStreams.get(cameraId);
   if (stream) {
+    const hasM3u8 = fs.existsSync(stream.hlsPath);
+    let segmentCount = 0;
+    try {
+      segmentCount = fs.readdirSync(stream.outputDir).filter(f => f.endsWith('.ts')).length;
+    } catch {}
+
     return {
       status: stream.status,
       startedAt: stream.startedAt,
       camera: stream.camera.camera_name,
+      hasM3u8,
+      segmentCount,
       lastStderr: stream.lastStderr,
     };
   }
@@ -174,11 +182,12 @@ function getActiveStreams() {
 /**
  * Probe RTSP stream to check if camera is reachable
  */
-function probeCamera(rtspUrl, timeout = 10000) {
+function probeCamera(rtspUrl, timeout = 18000) {
   return new Promise((resolve) => {
     const ffmpegPath = getFfmpegPath();
     const args = [
       '-rtsp_transport', 'tcp',
+      '-stimeout', '15000000',
       '-i', rtspUrl,
       '-t', '1',
       '-f', 'null',
