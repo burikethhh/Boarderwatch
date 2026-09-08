@@ -27,16 +27,39 @@ function getFfmpegPath() {
   return 'ffmpeg';
 }
 
+const dns = require('dns').promises;
+
+/**
+ * Resolve hostname to IPv4 to prevent IPv6/getaddrinfo segfaults on cloud container environments
+ */
+async function resolveRtspUrlToIPv4(rtspUrl) {
+  try {
+    const parsed = new URL(rtspUrl);
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(parsed.hostname)) {
+      return rtspUrl;
+    }
+    const resolved = await dns.lookup(parsed.hostname, { family: 4 });
+    if (resolved && resolved.address) {
+      parsed.hostname = resolved.address;
+      return parsed.toString();
+    }
+  } catch (err) {
+    console.warn('[CameraService] IPv4 DNS lookup fallback:', err.message);
+  }
+  return rtspUrl;
+}
+
 /**
  * Start RTSP relay for a camera - converts to HLS for browser playback
  */
-function startStream(camera) {
+async function startStream(camera) {
   const cameraId = camera.camera_id;
   if (activeStreams.has(cameraId)) {
     return activeStreams.get(cameraId);
   }
 
   const ffmpegPath = getFfmpegPath();
+  const effectiveRtspUrl = await resolveRtspUrlToIPv4(camera.rtsp_url);
   const outputDir = path.join(STREAM_DIR, `cam_${cameraId}`);
 
   if (!fs.existsSync(outputDir)) {
@@ -50,7 +73,7 @@ function startStream(camera) {
     '-flags', 'low_delay',
     '-rtsp_transport', 'tcp',
     '-timeout', '15000000',
-    '-i', camera.rtsp_url,
+    '-i', effectiveRtspUrl,
     '-an', // Disable audio for lightweight RTSP transcoding
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
@@ -184,13 +207,14 @@ function getActiveStreams() {
 /**
  * Probe RTSP stream to check if camera is reachable
  */
-function probeCamera(rtspUrl, timeout = 18000) {
+async function probeCamera(rtspUrl, timeout = 18000) {
+  const effectiveRtspUrl = await resolveRtspUrlToIPv4(rtspUrl);
   return new Promise((resolve) => {
     const ffmpegPath = getFfmpegPath();
     const args = [
       '-rtsp_transport', 'tcp',
       '-timeout', '15000000',
-      '-i', rtspUrl,
+      '-i', effectiveRtspUrl,
       '-t', '1',
       '-f', 'null',
       '-',
