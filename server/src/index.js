@@ -98,6 +98,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/api/health/ffmpeg', (req, res) => {
+  const { execSync } = require('child_process');
+  let staticPath = null;
+  try { staticPath = require('ffmpeg-static'); } catch (e) { staticPath = e.message; }
+  let version = null;
+  try { version = execSync(`"${staticPath || 'ffmpeg'}" -version`).toString().slice(0, 150); } catch (e) { version = e.message; }
+  res.json({ staticPath, version });
+});
+
 // Stream proxy endpoint for camera HLS (serves playlist and .ts chunks)
 app.use('/api/stream/:cameraId', (req, res) => {
   const cameraId = parseInt(req.params.cameraId);

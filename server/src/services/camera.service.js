@@ -13,14 +13,17 @@ if (!fs.existsSync(STREAM_DIR)) {
 const activeStreams = new Map();
 
 /**
- * Get FFmpeg binary path (uses ffmpeg-static if available)
+ * Get FFmpeg binary path (uses ffmpeg-static if available, ensures execute permissions)
  */
 function getFfmpegPath() {
   try {
-    return require('ffmpeg-static');
-  } catch {
-    return 'ffmpeg'; // Fallback to system ffmpeg
-  }
+    const staticPath = require('ffmpeg-static');
+    if (staticPath && fs.existsSync(staticPath)) {
+      try { fs.chmodSync(staticPath, 0o755); } catch {}
+      return staticPath;
+    }
+  } catch {}
+  return 'ffmpeg';
 }
 
 /**
@@ -72,23 +75,28 @@ function startStream(camera) {
     status: 'starting',
   };
 
+const lastStreamResults = new Map();
+
   ffmpeg.stdout.on('data', () => {});
   ffmpeg.stderr.on('data', (data) => {
     const msg = data.toString();
-    if (msg.includes('frame=') || msg.includes('Opening')) {
+    streamInfo.lastStderr = msg.trim().slice(-300);
+    if (msg.includes('frame=') || msg.includes('Opening') || msg.includes('EXTINF')) {
       streamInfo.status = 'streaming';
     }
   });
 
   ffmpeg.on('close', (code) => {
     streamInfo.status = 'stopped';
+    lastStreamResults.set(cameraId, { status: 'stopped', exitCode: code, lastStderr: streamInfo.lastStderr });
     activeStreams.delete(cameraId);
-    console.log(`Stream for camera ${cameraId} stopped with code ${code}`);
+    console.log(`Stream for camera ${cameraId} stopped with code ${code}. Stderr: ${streamInfo.lastStderr || 'none'}`);
   });
 
   ffmpeg.on('error', (err) => {
     console.error(`Stream error for camera ${cameraId}:`, err.message);
     streamInfo.status = 'error';
+    lastStreamResults.set(cameraId, { status: 'error', error: err.message, lastStderr: streamInfo.lastStderr });
     activeStreams.delete(cameraId);
   });
 
@@ -135,11 +143,16 @@ function stopAllStreams() {
  */
 function getStreamStatus(cameraId) {
   const stream = activeStreams.get(cameraId);
-  return stream ? {
-    status: stream.status,
-    startedAt: stream.startedAt,
-    camera: stream.camera.camera_name,
-  } : { status: 'stopped' };
+  if (stream) {
+    return {
+      status: stream.status,
+      startedAt: stream.startedAt,
+      camera: stream.camera.camera_name,
+      lastStderr: stream.lastStderr,
+    };
+  }
+  const last = lastStreamResults.get(cameraId);
+  return last || { status: 'stopped' };
 }
 
 /**
