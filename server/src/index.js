@@ -102,6 +102,30 @@ app.get('/api/health/ffmpeg', (req, res) => {
   res.json({ staticPath, version });
 });
 
+app.get('/api/health/ffmpeg-test', (req, res) => {
+  const { spawnSync } = require('child_process');
+  const staticPath = require('ffmpeg-static') || 'ffmpeg';
+  const url = req.query.rtsp || 'rtsp://admin123:admin1234@mnydp-2001-fd8-bc8b-1e00-6004-dad3-d9b2-bf0a.run.pinggy-free.link:38605/stream1';
+  try {
+    const result = spawnSync(staticPath, [
+      '-timeout', '10000000',
+      '-rtsp_transport', 'tcp',
+      '-i', url,
+      '-t', '1',
+      '-f', 'null',
+      '-'
+    ], { timeout: 15000 });
+    res.json({
+      status: result.status,
+      signal: result.signal,
+      error: result.error ? result.error.message : null,
+      stderr: result.stderr ? result.stderr.toString().slice(-1000) : null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Stream proxy endpoint for camera HLS (serves playlist and .ts chunks)
 app.use('/api/stream/:cameraId', (req, res) => {
   const cameraId = parseInt(req.params.cameraId);

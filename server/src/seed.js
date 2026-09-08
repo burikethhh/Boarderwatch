@@ -113,8 +113,23 @@ const insertPayment = db.prepare('INSERT OR REPLACE INTO payments (payment_id, r
 payments.forEach(p => insertPayment.run(p.id, p.receipt, p.lease_id, p.tenant, p.amount, p.date, p.method, p.type));
 console.log(`  Initialized ${payments.length} payment records (Total: ₱24,000)`);
 
-// 7. Configure Cameras (Left empty - connect real cameras dynamically)
-console.log('  CCTV cameras left empty for live device pairing');
+// 7. Configure Tapo C200 Camera
+try {
+  const isProd = (process.env.NODE_ENV || '').trim() === 'production';
+  const cameraHost = isProd
+    ? 'mnydp-2001-fd8-bc8b-1e00-6004-dad3-d9b2-bf0a.run.pinggy-free.link'
+    : '192.168.254.123';
+  const cameraPort = isProd ? 38605 : 554;
+  const rtspUrl = `rtsp://admin123:admin1234@${cameraHost}:${cameraPort}/stream1`;
+
+  db.prepare(`
+    INSERT OR REPLACE INTO cctv_cameras (camera_id, camera_name, location, brand, rtsp_url, username, password_encrypted, ip_address, port, stream_path, motion_detection, alert_threshold, status)
+    VALUES (1, 'Main Entrance - Tapo C200', 'Front Gate / Main Entrance', 'tapo', ?, 'admin123', 'admin1234', ?, ?, 'stream1', 1, 'medium', 'active')
+  `).run(rtspUrl, cameraHost, cameraPort);
+  console.log('  Tapo C200 camera configured: ' + rtspUrl);
+} catch (e) {
+  console.error('  Failed to configure Tapo camera in seed:', e.message);
+}
 
 // 9. Create System Notifications
 const notifications = [
