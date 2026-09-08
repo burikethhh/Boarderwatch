@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken');
 const { getDatabase } = require('../config/database');
 
 function generateToken(user) {
+  const secret = process.env.JWT_SECRET || 'boarderswatch_secret_key_day_n_earth_lucero_2026';
   return jwt.sign(
     { userId: user.user_id, role: user.role },
-    process.env.JWT_SECRET,
+    secret,
     { expiresIn: '24h' }
   );
 }

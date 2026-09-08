@@ -42,15 +42,18 @@ function startStream(camera) {
   const hlsPath = path.join(outputDir, 'stream.m3u8');
 
   const args = [
+    '-fflags', 'nobuffer',
+    '-flags', 'low_delay',
     '-rtsp_transport', 'tcp',
     '-i', camera.rtsp_url,
+    '-an', // Disable audio for lightweight RTSP transcoding
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency',
-    '-g', '30',
+    '-g', '25',
     '-sc_threshold', '0',
     '-f', 'hls',
-    '-hls_time', '2',
+    '-hls_time', '1',
     '-hls_list_size', '3',
     '-hls_flags', 'delete_segments+append_list',
     '-hls_segment_filename', path.join(outputDir, 'segment_%03d.ts'),
@@ -72,7 +75,7 @@ function startStream(camera) {
   ffmpeg.stdout.on('data', () => {});
   ffmpeg.stderr.on('data', (data) => {
     const msg = data.toString();
-    if (msg.includes('frame=')) {
+    if (msg.includes('frame=') || msg.includes('Opening')) {
       streamInfo.status = 'streaming';
     }
   });
@@ -100,14 +103,20 @@ function startStream(camera) {
 function stopStream(cameraId) {
   const stream = activeStreams.get(cameraId);
   if (stream) {
-    stream.process.kill('SIGTERM');
+    try {
+      stream.process.kill('SIGTERM');
+    } catch {}
     activeStreams.delete(cameraId);
 
     // Clean up HLS files
     if (fs.existsSync(stream.outputDir)) {
-      fs.readdirSync(stream.outputDir).forEach(f => {
-        fs.unlinkSync(path.join(stream.outputDir, f));
-      });
+      setTimeout(() => {
+        try {
+          fs.readdirSync(stream.outputDir).forEach(f => {
+            try { fs.unlinkSync(path.join(stream.outputDir, f)); } catch {}
+          });
+        } catch {}
+      }, 500);
     }
   }
 }

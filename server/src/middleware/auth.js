@@ -9,7 +9,8 @@ function authenticate(req, res, next) {
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'boarderswatch_secret_key_day_n_earth_lucero_2026';
+    const decoded = jwt.verify(token, secret);
     const db = getDatabase();
     const user = db.prepare('SELECT user_id, username, email, role, status FROM users WHERE user_id = ?').get(decoded.userId);
 

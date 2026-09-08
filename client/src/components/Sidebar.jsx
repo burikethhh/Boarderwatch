@@ -41,8 +41,12 @@ export default function Sidebar() {
         <div className="max-w-[1400px] mx-auto px-3 sm:px-5 h-12 sm:h-14 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
             <Logo className="w-6 h-6 sm:w-7 sm:h-7" />
-            <div className="hidden sm:block">
-              <span className="text-white text-[12px] sm:text-[13px] font-semibold tracking-wide">BOARDERSWATCH</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-white text-[12px] sm:text-[13px] font-semibold tracking-wide">BOARDERSWATCH</span>
+                <span className="hidden md:inline-block px-1.5 py-0.5 bg-white/10 text-[9px] text-text-muted rounded uppercase tracking-wider font-mono">Day N Earth Lucero</span>
+              </div>
+              <p className="text-[9px] text-text-muted hidden sm:block leading-none mt-0.5">Boarding House Management & CCTV</p>
             </div>
           </div>
 

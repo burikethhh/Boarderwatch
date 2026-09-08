@@ -45,8 +45,13 @@ export default function Dashboard() {
     <div className="space-y-5 sm:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Dashboard</h1>
-          <p className="text-text-muted text-xs sm:text-sm mt-0.5">Overview of your boarding house operations</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">System Dashboard</h1>
+            <span className="px-2 py-0.5 bg-white/10 text-white text-[10px] font-mono rounded uppercase tracking-wider">
+              Day N Earth Lucero
+            </span>
+          </div>
+          <p className="text-text-muted text-xs sm:text-sm mt-0.5">Real-time operational monitoring & surveillance metrics</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           {lastUpdated && (
@@ -59,6 +64,26 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {metrics?.unreadAlerts > 0 && (
+        <div className="bg-gradient-to-r from-red-950/40 via-surface-1 to-surface-1 border border-red-500/30 rounded-xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-white text-xs sm:text-sm font-semibold truncate">
+                Security Alert Active: {metrics.unreadAlerts} Unread Motion Incident{metrics.unreadAlerts > 1 ? 's' : ''}
+              </p>
+              <p className="text-text-muted text-[11px] truncate">Unacknowledged motion detected in CCTV monitoring perimeter.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/cctv')}
+            className="px-3.5 py-1.5 bg-white text-black text-xs font-semibold rounded-lg hover:bg-white/90 transition flex-shrink-0"
+          >
+            Review CCTV
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard icon={IconUsers} label="Tenants" value={metrics?.totalTenants ?? 0} loading={loading && !metrics} />

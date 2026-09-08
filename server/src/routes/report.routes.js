@@ -9,5 +9,6 @@ router.get('/tenant', ctrl.tenantReport);
 router.get('/payment', ctrl.paymentReport);
 router.get('/occupancy', ctrl.occupancyReport);
 router.get('/security', ctrl.securityReport);
+router.get('/analytics', ctrl.analytics);
 
 module.exports = router;

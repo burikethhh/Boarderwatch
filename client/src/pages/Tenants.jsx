@@ -70,28 +70,110 @@ export default function Tenants() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
 
-  const loadTenants = () => api.get('/tenants', { params: { search, page, limit: 20 } }).then(res => { setTenants(res.data.data); setTotal(res.data.total); setPage(res.data.page); setTotalPages(res.data.totalPages); });
-  useEffect(() => { loadTenants(); }, [search, page]);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [exporting, setExporting] = useState(false);
 
-  const handleCreate = async (form) => { await api.post('/tenants', form); setPage(1); loadTenants(); };
-  const handleUpdate = async (form) => { await api.put(`/tenants/${editingTenant.tenant_id}`, form); loadTenants(); };
-  const handleDelete = async (id) => { if (!confirm('Deactivate this tenant?')) return; await api.delete(`/tenants/${id}`); loadTenants(); };
+  const loadTenants = () =>
+    api
+      .get('/tenants', {
+        params: { search, status: statusFilter || undefined, page, limit: 20 },
+      })
+      .then((res) => {
+        setTenants(res.data.data);
+        setTotal(res.data.total);
+        setPage(res.data.page);
+        setTotalPages(res.data.totalPages);
+      });
+
+  useEffect(() => {
+    loadTenants();
+  }, [search, statusFilter, page]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/reports/tenant', { params: { format: 'excel' }, responseType: 'blob' });
+      const blob = new Blob([res.data]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tenants_list_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleCreate = async (form) => {
+    await api.post('/tenants', form);
+    setPage(1);
+    loadTenants();
+  };
+  const handleUpdate = async (form) => {
+    await api.put(`/tenants/${editingTenant.tenant_id}`, form);
+    loadTenants();
+  };
+  const handleDelete = async (id) => {
+    if (!confirm('Deactivate this tenant?')) return;
+    await api.delete(`/tenants/${id}`);
+    loadTenants();
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Tenants</h1>
-          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{total} registered</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Tenant Directory</h1>
+            <span className="px-2 py-0.5 bg-white/10 text-white text-[10px] font-mono rounded uppercase tracking-wider">
+              Day N Earth Lucero
+            </span>
+          </div>
+          <p className="text-text-muted text-xs sm:text-sm mt-0.5">{total} active boarders registered</p>
         </div>
-        <button onClick={() => { setEditingTenant(null); setModalOpen(true); }} className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-white text-black font-medium rounded-lg text-xs sm:text-sm hover:bg-white/90 transition self-start sm:self-auto">
-          <IconPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Add Tenant
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-surface-2 border border-border text-text-secondary hover:text-white rounded-lg text-xs sm:text-sm transition disabled:opacity-50"
+          >
+            {exporting ? 'Exporting...' : 'Export List (Excel)'}
+          </button>
+          <button
+            onClick={() => {
+              setEditingTenant(null);
+              setModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-white text-black font-semibold rounded-lg text-xs sm:text-sm hover:bg-white/90 transition shadow-sm"
+          >
+            <IconPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Add New Tenant
+          </button>
+        </div>
       </div>
 
-      <div className="relative max-w-full sm:max-w-sm">
-        <IconSearch className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-text-muted" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tenants..." className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 bg-surface-1 border border-border rounded-lg text-white text-xs sm:text-sm placeholder-text-muted" />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-full sm:max-w-sm">
+          <IconSearch className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-text-muted" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tenants by name or room..."
+            className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 bg-surface-1 border border-border rounded-lg text-white text-xs sm:text-sm placeholder-text-muted"
+          />
+        </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 bg-surface-1 border border-border rounded-lg text-white text-xs sm:text-sm"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active Boarders</option>
+          <option value="inactive">Inactive / Past</option>
+        </select>
       </div>
 
       <div className="bg-surface-1 border border-border rounded-xl overflow-hidden">

@@ -44,7 +44,9 @@ try {
 
 // Middleware
 app.use(cors({
-  origin: (process.env.NODE_ENV || '').trim() === 'production' ? process.env.CLIENT_URL : 'http://localhost:5173',
+  origin: (process.env.NODE_ENV || '').trim() === 'production'
+    ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL] : true)
+    : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
 }));
 app.use(express.json());
@@ -89,16 +91,30 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Stream proxy endpoint for camera HLS
-app.get('/api/stream/:cameraId', (req, res) => {
+// Stream proxy endpoint for camera HLS (serves playlist and .ts chunks)
+app.use('/api/stream/:cameraId', (req, res) => {
   const cameraId = parseInt(req.params.cameraId);
-  const streamPath = path.join(__dirname, `../streams/cam_${cameraId}/stream.m3u8`);
-
-  if (fs.existsSync(streamPath)) {
-    res.sendFile(streamPath);
-  } else {
-    res.status(404).json({ error: 'Stream not available' });
+  if (isNaN(cameraId)) {
+    return res.status(400).json({ error: 'Invalid camera ID' });
   }
+
+  const streamDir = path.join(__dirname, `../streams/cam_${cameraId}`);
+  const reqSubPath = req.url.split('?')[0].replace(/^\//, '');
+  const targetFile = reqSubPath === '' ? 'stream.m3u8' : reqSubPath;
+  const filePath = path.join(streamDir, targetFile);
+
+  if (fs.existsSync(filePath)) {
+    if (targetFile.endsWith('.m3u8')) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (targetFile.endsWith('.ts')) {
+      res.setHeader('Content-Type', 'video/mp2t');
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+    return res.sendFile(filePath);
+  }
+
+  res.status(404).json({ error: 'Stream segment or playlist not available' });
 });
 
 // Serve static frontend in production
