@@ -13,6 +13,7 @@ function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
   const hlsRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [timeStr, setTimeStr] = useState(new Date().toLocaleTimeString());
+  const [isBuffering, setIsBuffering] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -38,21 +39,32 @@ function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
           const hls = new Hls({
             enableWorker: false,
             lowLatencyMode: true,
-            backBufferLength: 5,
+            backBufferLength: 4,
             liveSyncDurationCount: 2,
             liveMaxLatencyDurationCount: 4,
+            manifestLoadingMaxRetry: 25,
+            manifestLoadingRetryDelay: 1000,
+            manifestLoadingMaxRetryTimeout: 35000,
+            levelLoadingMaxRetry: 25,
+            levelLoadingRetryDelay: 1000,
           });
           hlsRef.current = hls;
           hls.loadSource(src);
           hls.attachMedia(videoRef.current);
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            setIsBuffering(false);
             videoRef.current?.play().catch(() => {});
           });
           hls.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                  hls.startLoad();
+                  setIsBuffering(true);
+                  setTimeout(() => {
+                    if (!isCancelled && hlsRef.current) {
+                      hls.startLoad();
+                    }
+                  }, 1200);
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   hls.recoverMediaError();
@@ -95,13 +107,24 @@ function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
   return (
     <div ref={containerRef} className="aspect-video bg-black relative overflow-hidden group">
       {streaming ? (
-        <video
-          ref={videoRef}
-          className="w-full h-full object-contain"
-          muted
-          autoPlay
-          playsInline
-        />
+        <>
+          <video
+            ref={videoRef}
+            className="w-full h-full object-contain"
+            muted
+            autoPlay
+            playsInline
+          />
+          {isBuffering && (
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2.5 z-10">
+              <IconLoader className="w-8 h-8 text-blue-400 animate-spin" />
+              <div className="text-center">
+                <p className="text-xs text-white font-medium">Connecting to Camera Feed...</p>
+                <p className="text-[10px] text-text-muted mt-0.5 font-mono">Transcoding RTSP to HLS</p>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80">
           <IconCCTV className="w-12 h-12 text-surface-4 mb-2 opacity-60" />
