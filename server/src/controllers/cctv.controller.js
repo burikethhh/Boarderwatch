@@ -187,3 +187,68 @@ exports.probeIp = async (req, res) => {
   }
 };
 
+exports.autoRebind = async (req, res) => {
+  try {
+    const db = getDatabase();
+    const camera = db.prepare('SELECT * FROM cctv_cameras WHERE camera_id = ?').get(req.params.id);
+    if (!camera) return res.status(404).json({ error: 'Camera not found' });
+
+    console.log(`[AutoRebind] Scanning local network to re-link camera ${camera.camera_name}...`);
+    const foundCamera = await discoveryService.findTapoCamera();
+
+    if (!foundCamera) {
+      return res.status(404).json({
+        success: false,
+        message: 'Could not find Tapo camera on local network. Ensure camera is powered on and connected to Wi-Fi.',
+      });
+    }
+
+    const oldIp = camera.ip_address;
+    const newIp = foundCamera.ip;
+    const isProd = (process.env.NODE_ENV || '').trim() === 'production';
+
+    let updated = false;
+    if (oldIp !== newIp || camera.status === 'offline') {
+      const preset = BRAND_PRESETS[camera.brand] || BRAND_PRESETS.tapo || BRAND_PRESETS.generic;
+      const port = camera.port || preset.defaultPort || 554;
+      const stream = camera.stream_path || preset.streams?.high || 'stream1';
+
+      const targetHost = (!isProd || /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(oldIp)) ? newIp : oldIp;
+
+      const rtspUrl = preset.rtspFormat
+        .replace('{user}', camera.username || '')
+        .replace('{pass}', camera.password_encrypted || '')
+        .replace('{ip}', targetHost)
+        .replace('{port}', port)
+        .replace('{stream}', stream)
+        .replace('{streamPath}', stream.includes('/') ? stream : `/${stream}`);
+
+      db.prepare(`
+        UPDATE cctv_cameras
+        SET ip_address = ?, rtsp_url = ?, status = 'active', last_health_check = CURRENT_TIMESTAMP
+        WHERE camera_id = ?
+      `).run(targetHost, rtspUrl, camera.camera_id);
+
+      db.prepare('INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')
+        .run(req.user.user_id, 'UPDATE', 'camera', camera.camera_id, `Auto-relinked IP from ${oldIp} to ${newIp} (MAC: ${foundCamera.macAddress || 'unknown'})`);
+
+      updated = true;
+    }
+
+    res.json({
+      success: true,
+      updated,
+      oldIp,
+      newIp,
+      macAddress: foundCamera.macAddress,
+      cameraName: foundCamera.name,
+      message: updated
+        ? `Successfully re-linked camera to new IP: ${newIp}!`
+        : `Camera IP verified: ${newIp} is active and reachable.`,
+    });
+  } catch (e) {
+    console.error('[AutoRebind Error]', e);
+    res.status(500).json({ error: 'Auto-rebind failed: ' + e.message });
+  }
+};
+

@@ -205,6 +205,10 @@ export default function CCTV() {
   const [directIpResult, setDirectIpResult] = useState(null);
   const [discoveryError, setDiscoveryError] = useState(null);
   const [hasScanned, setHasScanned] = useState(false);
+  const [rebindingId, setRebindingId] = useState(null);
+  const [rebindStatus, setRebindStatus] = useState(null);
+  const [showDhcpGuide, setShowDhcpGuide] = useState(false);
+  const [copiedMac, setCopiedMac] = useState(false);
 
   const [form, setForm] = useState({
     camera_name: 'CAM 1 - MAIN ENTRANCE (Tapo C200)',
@@ -319,6 +323,23 @@ export default function CCTV() {
       refresh();
     } catch (err) {
       console.error('Delete camera failed:', err);
+    }
+  };
+
+  const handleAutoRebind = async (camId) => {
+    setRebindingId(camId);
+    setRebindStatus(null);
+    try {
+      const res = await api.post(`/cameras/${camId}/auto-rebind`);
+      setRebindStatus({ success: res.data.success, message: res.data.message });
+      refresh();
+    } catch (err) {
+      setRebindStatus({
+        success: false,
+        message: err.response?.data?.message || 'Failed to auto-detect camera. Verify camera is powered on and connected to Wi-Fi.',
+      });
+    } finally {
+      setRebindingId(null);
     }
   };
 
@@ -457,6 +478,14 @@ export default function CCTV() {
           </button>
 
           <button
+            onClick={() => setShowDhcpGuide(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 border border-purple-500/30 text-purple-300 hover:text-white rounded-lg text-xs transition font-medium"
+            title="Lock camera IP on your Wi-Fi router so it never changes again"
+          >
+            <IconSettings className="w-3.5 h-3.5 text-purple-400" /> Lock Static IP
+          </button>
+
+          <button
             onClick={handleRecordAllToggle}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${
               recordingAll
@@ -503,6 +532,27 @@ export default function CCTV() {
           </button>
         </div>
       </div>
+
+      {/* Auto-Rebind Status Notification */}
+      {rebindStatus && (
+        <div className={`p-4 rounded-xl border flex items-center justify-between gap-3 ${
+          rebindStatus.success
+            ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+            : 'bg-red-950/40 border-red-500/30 text-red-300'
+        }`}>
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm">
+            {rebindStatus.success ? (
+              <IconCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            ) : (
+              <IconAlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            )}
+            <span>{rebindStatus.message}</span>
+          </div>
+          <button onClick={() => setRebindStatus(null)} className="text-text-muted hover:text-white p-1">
+            <IconX className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Prominent Active Motion Detection Alert Banner (Figure 20) */}
       {alerts.length > 0 && (
@@ -631,6 +681,15 @@ export default function CCTV() {
                   className="py-2 px-3 bg-surface-2 border border-border text-text-secondary hover:text-white hover:border-border-hover rounded-lg text-xs transition"
                 >
                   Test Connection
+                </button>
+                <button
+                  onClick={() => handleAutoRebind(cam.camera_id)}
+                  disabled={rebindingId === cam.camera_id}
+                  className="py-2 px-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
+                  title="Camera IP changed after reboot or power off? Scan network and re-link to new IP"
+                >
+                  <IconRefresh className={`w-3.5 h-3.5 ${rebindingId === cam.camera_id ? 'animate-spin' : ''}`} />
+                  <span>{rebindingId === cam.camera_id ? 'Re-linking...' : 'Auto-Fix IP'}</span>
                 </button>
                 <button
                   onClick={() => handleEditCamera(cam)}
@@ -1038,6 +1097,136 @@ export default function CCTV() {
                 className="px-4 py-2 bg-surface-2 border border-border text-text-secondary hover:text-white rounded-lg text-xs transition"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DHCP Static IP Reservation Guide Modal */}
+      {showDhcpGuide && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in">
+          <div className="bg-surface-1 border border-border rounded-xl w-full max-w-xl max-h-[92vh] overflow-y-auto shadow-2xl">
+            <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                  <IconSettings className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-sm sm:text-base">Lock Camera IP Address (Static Lease)</h3>
+                  <p className="text-text-muted text-[11px]">Prevent your Wi-Fi router from changing the Tapo C200 IP after reboots</p>
+                </div>
+              </div>
+              <button onClick={() => setShowDhcpGuide(false)} className="text-text-muted hover:text-white p-1">
+                <IconX className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-5 text-xs text-text-secondary">
+              {/* Quick Info Box */}
+              <div className="p-4 bg-purple-950/20 border border-purple-500/30 rounded-xl space-y-3">
+                <p className="text-purple-200 font-medium">
+                  Why does the IP change?
+                </p>
+                <p className="text-purple-300/80 leading-relaxed text-[11px]">
+                  When the camera is unplugged or reboots, your Wi-Fi router’s DHCP server assigns it a dynamic IP.
+                  By reserving the camera’s <strong>MAC Address</strong> in your router, the router will <strong>ALWAYS</strong> assign the exact same IP address forever.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <div className="p-2.5 bg-black/40 rounded-lg border border-white/5">
+                    <span className="text-[10px] text-text-muted block uppercase tracking-wider">Camera MAC Address</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono text-white text-xs font-semibold">10:5a:95:5c:7f:0d</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText('10:5a:95:5c:7f:0d');
+                          setCopiedMac(true);
+                          setTimeout(() => setCopiedMac(false), 2000);
+                        }}
+                        className="px-2 py-0.5 bg-white/10 hover:bg-white/20 text-white rounded text-[10px] transition"
+                      >
+                        {copiedMac ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-black/40 rounded-lg border border-white/5">
+                    <span className="text-[10px] text-text-muted block uppercase tracking-wider">Router Gateway</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono text-white text-xs font-semibold">192.168.254.254</span>
+                      <a
+                        href="http://192.168.254.254"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-0.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded text-[10px] transition"
+                      >
+                        Open
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-black/40 rounded-lg border border-white/5">
+                    <span className="text-[10px] text-text-muted block uppercase tracking-wider">Recommended Static IP</span>
+                    <span className="font-mono text-green-400 text-xs font-semibold block mt-1">192.168.254.123</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step-by-Step Instructions */}
+              <div className="space-y-3">
+                <h4 className="text-white font-medium text-xs uppercase tracking-wider">3-Step Permanent Router Setup:</h4>
+
+                <div className="space-y-2.5">
+                  <div className="flex items-start gap-3 p-3 bg-surface-2 rounded-lg border border-border">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[11px] flex-shrink-0 mt-0.5">1</span>
+                    <div>
+                      <span className="font-semibold text-white block">Log in to your Router Admin Page</span>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        Open <a href="http://192.168.254.254" target="_blank" rel="noreferrer" className="text-blue-400 underline font-medium">http://192.168.254.254</a> in your browser (Globe At Home / PLDT / TP-Link). Login details are on the sticker under the modem.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 bg-surface-2 rounded-lg border border-border">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[11px] flex-shrink-0 mt-0.5">2</span>
+                    <div>
+                      <span className="font-semibold text-white block">Locate DHCP Static Lease / Binding</span>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        Navigate to <strong>Network</strong> or <strong>Advanced</strong> &gt; <strong>LAN</strong> &gt; <strong>DHCP Static IP</strong> (or <em>IP & MAC Binding</em> / <em>Address Reservation</em>).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 bg-surface-2 rounded-lg border border-border">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[11px] flex-shrink-0 mt-0.5">3</span>
+                    <div>
+                      <span className="font-semibold text-white block">Add Static Binding & Save</span>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        Enter MAC: <code className="text-white bg-surface-3 px-1.5 py-0.5 rounded font-mono">10:5a:95:5c:7f:0d</code> and IP: <code className="text-white bg-surface-3 px-1.5 py-0.5 rounded font-mono">192.168.254.123</code>. Click <strong>Apply / Save</strong>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Software Auto-Fix feature explanation */}
+              <div className="p-3.5 bg-surface-2 rounded-xl border border-border flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-white font-medium block">Prefer not to change router settings?</span>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Whenever the camera is unplugged or restarted, simply click <strong>Auto-Fix IP</strong> on the camera card. BoardersWatch scans the router and re-links to the new IP in 2 seconds automatically!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6 border-t border-border flex items-center justify-end">
+              <button
+                onClick={() => setShowDhcpGuide(false)}
+                className="px-4 py-2 bg-white text-black font-semibold rounded-lg text-xs hover:bg-white/90 transition"
+              >
+                Got It, Close
               </button>
             </div>
           </div>

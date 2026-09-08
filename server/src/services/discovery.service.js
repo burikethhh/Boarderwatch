@@ -230,11 +230,28 @@ async function probeSingleIp(ip) {
   return { ip, reachable: false, error: 'No camera response on ports 554, 2020, or 80' };
 }
 
+const { execSync } = require('child_process');
+
+function getMacForIp(ip) {
+  try {
+    const output = execSync('arp -a', { timeout: 2000 }).toString();
+    const line = output.split(/\r?\n/).find(l => l.includes(ip));
+    if (line) {
+      const parts = line.trim().split(/\s+/);
+      if (parts[0] === ip && parts[1]) {
+        return parts[1].replace(/-/g, ':').toLowerCase();
+      }
+    }
+  } catch {}
+  return null;
+}
+
 /**
  * Main auto-discovery entrypoint
  */
 async function discoverCameras(options = {}) {
-  const customSubnet = options.subnet; // e.g. "192.168.1"
+  const opts = options || {};
+  const customSubnet = opts.subnet; // e.g. "192.168.1"
   let subnets = getLocalSubnets();
 
   if (customSubnet) {
@@ -288,6 +305,11 @@ async function discoverCameras(options = {}) {
     }
   }
 
+  // Enrich with ARP MAC address if available
+  for (const item of results) {
+    item.macAddress = getMacForIp(item.ip);
+  }
+
   return {
     scannedSubnets: subnets.map(s => `${s.baseIp}.0/24 (${s.interfaceName})`),
     cameras: results,
@@ -295,9 +317,28 @@ async function discoverCameras(options = {}) {
   };
 }
 
+/**
+ * Find active Tapo C200 camera on local network by MAC or ONVIF signature
+ */
+async function findTapoCamera() {
+  const result = await discoverCameras();
+  if (!result || !result.cameras || result.cameras.length === 0) return null;
+
+  // 1. Try finding by Tapo signature or vendor MAC
+  const tapo = result.cameras.find(c =>
+    (c.brand && c.brand.includes('tapo')) ||
+    (c.name && c.name.toLowerCase().includes('tapo')) ||
+    (c.macAddress && (c.macAddress.startsWith('10:5a:95') || c.macAddress === '10:5a:95:5c:7f:0d'))
+  );
+
+  return tapo || result.cameras[0] || null;
+}
+
 module.exports = {
   getLocalSubnets,
   discoverCameras,
+  findTapoCamera,
+  getMacForIp,
   probeSingleIp,
   checkPort,
 };

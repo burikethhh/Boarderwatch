@@ -18,6 +18,7 @@ router.post('/', requireRole('admin'), ctrl.create);
 router.put('/:id', requireRole('admin'), ctrl.update);
 router.delete('/:id', requireRole('admin'), ctrl.remove);
 router.post('/:id/test', requireRole('admin'), ctrl.testConnection);
+router.post('/:id/auto-rebind', requireRole('admin'), ctrl.autoRebind);
 
 // Stream control
 router.post('/:id/stream/start', requireRole('admin'), async (req, res) => {
