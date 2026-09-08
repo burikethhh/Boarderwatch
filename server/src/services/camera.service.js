@@ -49,7 +49,7 @@ function startStream(camera) {
     '-fflags', 'nobuffer',
     '-flags', 'low_delay',
     '-rtsp_transport', 'tcp',
-    '-stimeout', '15000000',
+    '-timeout', '15000000',
     '-i', camera.rtsp_url,
     '-an', // Disable audio for lightweight RTSP transcoding
     '-c:v', 'libx264',
@@ -187,7 +187,7 @@ function probeCamera(rtspUrl, timeout = 18000) {
     const ffmpegPath = getFfmpegPath();
     const args = [
       '-rtsp_transport', 'tcp',
-      '-stimeout', '15000000',
+      '-timeout', '15000000',
       '-i', rtspUrl,
       '-t', '1',
       '-f', 'null',
