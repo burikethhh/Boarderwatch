@@ -10,6 +10,8 @@ router.post('/webhook', ctrl.webhook);
 
 router.use(authenticate);
 
+router.get('/discover', requireRole('admin'), ctrl.discover);
+router.get('/probe', requireRole('admin'), ctrl.probeIp);
 router.get('/', ctrl.list);
 router.get('/:id', ctrl.getById);
 router.post('/', requireRole('admin'), ctrl.create);

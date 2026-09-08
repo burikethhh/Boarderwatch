@@ -2,6 +2,7 @@ const { getDatabase } = require('../config/database');
 const { BRAND_PRESETS, buildRtspUrl } = require('../config/brandPresets');
 const cameraService = require('../services/camera.service');
 const notificationService = require('../services/notification.service');
+const discoveryService = require('../services/discovery.service');
 
 exports.presets = (req, res) => {
   res.json(BRAND_PRESETS);
@@ -160,3 +161,29 @@ exports.webhook = async (req, res) => {
 
   res.json({ success: true, ...result });
 };
+
+exports.discover = async (req, res) => {
+  try {
+    const { subnet } = req.query;
+    const result = await discoveryService.discoverCameras({ subnet });
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (e) {
+    console.error('[CCTV Discovery Error]', e);
+    res.status(500).json({ error: 'Failed to scan network: ' + e.message });
+  }
+};
+
+exports.probeIp = async (req, res) => {
+  try {
+    const { ip } = req.query;
+    if (!ip) return res.status(400).json({ error: 'IP address is required' });
+    const result = await discoveryService.probeSingleIp(ip);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: 'Probe failed: ' + e.message });
+  }
+};
+

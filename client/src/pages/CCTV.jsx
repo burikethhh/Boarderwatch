@@ -3,7 +3,8 @@ import api from '../services/api';
 import { usePolling } from '../hooks/usePolling';
 import {
   IconPlus, IconCCTV, IconWifi, IconWifiOff, IconAlertTriangle,
-  IconSettings, IconRefresh, IconLoader, IconX, IconEye, IconCheck
+  IconSettings, IconRefresh, IconLoader, IconX, IconEye, IconCheck,
+  IconRadar, IconSearch
 } from '../components/Icons';
 
 function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
@@ -162,6 +163,18 @@ export default function CCTV() {
   const [recordingAll, setRecordingAll] = useState(false);
   const [simulatingAlert, setSimulatingAlert] = useState(false);
 
+  // Auto-discovery state
+  const [showDiscoverModal, setShowDiscoverModal] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveredCameras, setDiscoveredCameras] = useState([]);
+  const [scannedSubnets, setScannedSubnets] = useState([]);
+  const [customSubnetInput, setCustomSubnetInput] = useState('');
+  const [directIpInput, setDirectIpInput] = useState('');
+  const [probingDirectIp, setProbingDirectIp] = useState(false);
+  const [directIpResult, setDirectIpResult] = useState(null);
+  const [discoveryError, setDiscoveryError] = useState(null);
+  const [hasScanned, setHasScanned] = useState(false);
+
   const [form, setForm] = useState({
     camera_name: 'CAM 1 - MAIN ENTRANCE (Tapo C200)',
     location: 'Front Gate / Main Entrance',
@@ -290,6 +303,56 @@ export default function CCTV() {
     setShowForm(true);
   };
 
+  const handleAutoDiscover = async (customSubnet = null) => {
+    setDiscovering(true);
+    setDiscoveryError(null);
+    setHasScanned(true);
+    setShowDiscoverModal(true);
+    try {
+      const url = customSubnet ? `/cameras/discover?subnet=${encodeURIComponent(customSubnet)}` : '/cameras/discover';
+      const res = await api.get(url);
+      setDiscoveredCameras(res.data.cameras || []);
+      setScannedSubnets(res.data.scannedSubnets || []);
+    } catch (err) {
+      console.error('Auto discovery error:', err);
+      setDiscoveryError(err.response?.data?.error || err.message || 'Failed to scan network');
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  const handleProbeSingleIp = async (ip) => {
+    if (!ip) return;
+    setProbingDirectIp(true);
+    setDirectIpResult(null);
+    try {
+      const res = await api.get(`/cameras/probe?ip=${encodeURIComponent(ip.trim())}`);
+      setDirectIpResult(res.data);
+    } catch (err) {
+      setDirectIpResult({ ip, reachable: false, error: err.response?.data?.error || err.message });
+    } finally {
+      setProbingDirectIp(false);
+    }
+  };
+
+  const handleSelectDiscoveredCamera = (dev) => {
+    setForm({
+      camera_name: dev.name || 'CAM 1 - Tapo C200 (Auto-Detected)',
+      location: 'Front Gate / Main Entrance',
+      brand: dev.brand || 'tapo',
+      ip_address: dev.ip,
+      username: '',
+      password: '',
+      port: dev.port || 554,
+      stream_path: (dev.streamPath || 'stream1').replace(/^\/+/, ''),
+      motion_detection: 1,
+      alert_threshold: 'medium',
+    });
+    setShowDiscoverModal(false);
+    setTestResult(null);
+    setShowForm(true);
+  };
+
   const generateRtspUrl = () => {
     const preset = presets[form.brand] || presets.generic;
     if (!preset) return '';
@@ -348,6 +411,16 @@ export default function CCTV() {
             title="Refresh"
           >
             <IconRefresh className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => handleAutoDiscover()}
+            disabled={discovering}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white font-medium rounded-lg text-xs hover:bg-blue-500 transition shadow-sm"
+            title="Auto-detect CCTV cameras connected to the local Wi-Fi router"
+          >
+            <IconRadar className={`w-4 h-4 ${discovering ? 'animate-spin' : ''}`} />
+            {discovering ? 'Scanning...' : 'Auto-Detect CCTV'}
           </button>
 
           <button
@@ -661,6 +734,224 @@ export default function CCTV() {
                 className="px-5 py-2 bg-white text-black font-semibold rounded-lg text-xs hover:bg-white/90 disabled:opacity-40 transition"
               >
                 Save Camera
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Discovery Radar Modal */}
+      {showDiscoverModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-surface-1 border border-border rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
+                  <IconRadar className={`w-6 h-6 ${discovering ? 'animate-spin' : ''}`} />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-semibold text-white">Auto-Detect CCTV on Wi-Fi</h2>
+                  <p className="text-xs text-text-muted">
+                    Scans local router subnet for TP-Link Tapo C200 &amp; ONVIF / RTSP cameras
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDiscoverModal(false)}
+                className="p-2 text-text-muted hover:text-white hover:bg-surface-2 rounded-lg transition"
+              >
+                <IconX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 space-y-5 flex-1">
+              {/* Scanning Radar Animation / Status Banner */}
+              {discovering ? (
+                <div className="p-6 bg-surface-2 border border-blue-500/30 rounded-xl text-center space-y-3 relative overflow-hidden">
+                  <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
+                    <span className="absolute inset-0 rounded-full border border-blue-500/40 animate-ping" />
+                    <span className="absolute inset-2 rounded-full border border-blue-400/30 animate-pulse" />
+                    <IconRadar className="w-8 h-8 text-blue-400 animate-spin" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Scanning Wi-Fi Network...</h3>
+                    <p className="text-xs text-text-muted mt-1">
+                      Sending ONVIF WS-Discovery probes and probing RTSP port 554 &amp; Tapo port 2020
+                    </p>
+                    {scannedSubnets.length > 0 && (
+                      <div className="mt-2 flex items-center justify-center gap-1.5 flex-wrap">
+                        {scannedSubnets.map((sub, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-300 text-[10px] font-mono rounded-full">
+                            Subnet: {sub}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Scanned subnets badge */}
+                  <div className="flex items-center justify-between text-xs bg-surface-2/60 border border-border p-3 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span className="text-text-secondary">
+                        Scanned: <span className="font-mono text-white">{scannedSubnets.join(', ') || 'Local Subnet'}</span>
+                      </span>
+                    </div>
+                    <span className="text-text-muted">
+                      {discoveredCameras.length} camera{discoveredCameras.length === 1 ? '' : 's'} detected
+                    </span>
+                  </div>
+
+                  {/* Discovered Cameras Cards */}
+                  {discoveredCameras.length > 0 ? (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
+                        Detected Cameras on Local Router
+                      </h3>
+                      {discoveredCameras.map((cam, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 bg-surface-2 border border-blue-500/30 rounded-xl hover:border-blue-500/60 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 mt-0.5 flex-shrink-0">
+                              <IconCCTV className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-semibold text-white">{cam.name}</h4>
+                                <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono rounded">
+                                  ONLINE
+                                </span>
+                              </div>
+                              <p className="text-xs font-mono text-blue-300 mt-0.5">
+                                IP: {cam.ip} &middot; Port: {cam.port || 554}
+                              </p>
+                              <p className="text-[11px] text-text-muted mt-1">
+                                {cam.details || 'Ready for RTSP streaming'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleSelectDiscoveredCamera(cam)}
+                            className="px-4 py-2 bg-white text-black font-semibold rounded-lg text-xs hover:bg-white/90 transition shadow-sm flex items-center justify-center gap-1.5 flex-shrink-0"
+                          >
+                            <IconCheck className="w-3.5 h-3.5" /> 1-Click Setup
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-surface-2/40 border border-border rounded-xl space-y-3">
+                      <div className="flex items-center gap-2 text-yellow-400 text-xs font-medium">
+                        <IconAlertTriangle className="w-4 h-4" />
+                        <span>No cameras responded on this router subnet</span>
+                      </div>
+                      <p className="text-xs text-text-muted">
+                        If your Tapo C200 is connected to Wi-Fi, check the following:
+                      </p>
+                      <ul className="text-xs text-text-secondary space-y-1.5 list-disc list-inside">
+                        <li>
+                          <strong className="text-white">LED Status:</strong> The Tapo C200 front LED should be <span className="text-emerald-400 font-semibold">solid green</span> (connected to router). If blinking amber, setup Wi-Fi in the Tapo mobile app first.
+                        </li>
+                        <li>
+                          <strong className="text-white">Same Router / SSID:</strong> Ensure this PC and your Tapo C200 are connected to the same Wi-Fi router network.
+                        </li>
+                        <li>
+                          <strong className="text-white">Camera Account:</strong> Tapo cameras require creating a local account in Tapo App &rarr; <em>Device Settings &rarr; Advanced Settings &rarr; Camera Account</em>.
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Direct Single IP Probe tool */}
+                  <div className="p-4 bg-surface-2 border border-border rounded-xl space-y-3">
+                    <h4 className="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <IconSearch className="w-3.5 h-3.5 text-blue-400" /> Direct Camera IP Probe
+                    </h4>
+                    <p className="text-[11px] text-text-muted">
+                      Already know your camera's IP from the Tapo app? (Check <em>Device Info</em> in Tapo app)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={directIpInput}
+                        onChange={(e) => setDirectIpInput(e.target.value)}
+                        placeholder="e.g. 192.168.254.105 or 192.168.1.50"
+                        className="flex-1 px-3 py-2 bg-surface-1 border border-border rounded-lg text-white font-mono text-xs focus:border-blue-500 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => handleProbeSingleIp(directIpInput)}
+                        disabled={probingDirectIp || !directIpInput.trim()}
+                        className="px-4 py-2 bg-surface-3 border border-border text-white text-xs rounded-lg hover:bg-surface-4 transition disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {probingDirectIp ? <IconLoader className="w-3.5 h-3.5 animate-spin" /> : <IconWifi className="w-3.5 h-3.5" />}
+                        {probingDirectIp ? 'Probing...' : 'Check IP'}
+                      </button>
+                    </div>
+
+                    {directIpResult && (
+                      <div className={`p-3 rounded-lg border text-xs flex items-center justify-between gap-3 ${
+                        directIpResult.reachable
+                          ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
+                          : 'bg-red-950/20 border-red-500/30 text-red-300'
+                      }`}>
+                        <div>
+                          <p className="font-semibold">{directIpResult.reachable ? 'Camera Reachable!' : 'Unreachable'}</p>
+                          <p className="text-[11px] opacity-80 mt-0.5">
+                            {directIpResult.reachable
+                              ? `${directIpResult.name} found at ${directIpResult.ip} (Port ${directIpResult.port})`
+                              : directIpResult.error}
+                          </p>
+                        </div>
+                        {directIpResult.reachable && (
+                          <button
+                            onClick={() => handleSelectDiscoveredCamera(directIpResult)}
+                            className="px-3 py-1.5 bg-white text-black font-semibold text-xs rounded hover:bg-white/90"
+                          >
+                            Use This IP
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Custom Subnet Scan Tool */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-text-muted flex-shrink-0">Quick Subnets:</span>
+                    {['192.168.254', '192.168.1', '192.168.0'].map((sub) => (
+                      <button
+                        key={sub}
+                        onClick={() => handleAutoDiscover(sub)}
+                        className="px-2.5 py-1 bg-surface-2 border border-border hover:border-blue-400 hover:text-white rounded text-[11px] font-mono transition text-text-secondary"
+                      >
+                        {sub}.0/24
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-6 border-t border-border flex items-center justify-between">
+              <button
+                onClick={() => handleAutoDiscover()}
+                disabled={discovering}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <IconRefresh className={`w-3.5 h-3.5 ${discovering ? 'animate-spin' : ''}`} />
+                {discovering ? 'Scanning...' : 'Rescan Network'}
+              </button>
+              <button
+                onClick={() => setShowDiscoverModal(false)}
+                className="px-4 py-2 bg-surface-2 border border-border text-text-secondary hover:text-white rounded-lg text-xs transition"
+              >
+                Close
               </button>
             </div>
           </div>
