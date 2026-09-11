@@ -60,6 +60,9 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Serve HLS stream segments
 app.use('/streams', express.static(path.join(__dirname, '../streams')));
 
+// Serve recorded evidence clips
+app.use('/api/recordings', express.static(path.join(__dirname, '../recordings')));
+
 // Routes
 try {
   app.use('/api/auth', require('./routes/auth.routes'));
@@ -178,6 +181,14 @@ const server = app.listen(PORT, () => {
   } catch (e) {
     console.error('[BoardersWatch] Cron error:', e.message);
   }
+
+  // Start server-side motion detection
+  try {
+    const security = require('./services/security.service');
+    security.startAll();
+  } catch (e) {
+    console.error('[BoardersWatch] Motion service error:', e.message);
+  }
 });
 
 // Graceful shutdown
@@ -190,6 +201,10 @@ function shutdown() {
   try {
     const { stopAllStreams } = require('./services/camera.service');
     stopAllStreams();
+  } catch {}
+  try {
+    const security = require('./services/security.service');
+    security.stopAll();
   } catch {}
   server.close(() => {
     console.log('[BoardersWatch] Goodbye');

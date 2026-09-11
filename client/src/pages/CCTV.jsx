@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { usePolling } from '../hooks/usePolling';
+import MotionPanel from '../components/MotionPanel';
 import {
   IconPlus, IconCCTV, IconWifi, IconWifiOff, IconAlertTriangle,
   IconSettings, IconRefresh, IconLoader, IconX, IconEye, IconCheck,
   IconRadar, IconSearch, IconTrash, IconEdit
 } from '../components/Icons';
 
-function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
+function CameraPlayer({ camera, onStartStream, onStopStream, streaming, motion }) {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
@@ -139,6 +140,20 @@ function CameraPlayer({ camera, onStartStream, onStopStream, streaming }) {
         </div>
       )}
 
+      {/* Motion tracking overlay */}
+      {motion && motion.motion && motion.bbox && (
+        <div
+          className="absolute border-2 border-emerald-400 rounded pointer-events-none z-10 transition-all duration-150"
+          style={{
+            left: `${motion.bbox.x * 100}%`,
+            top: `${motion.bbox.y * 100}%`,
+            width: `${motion.bbox.w * 100}%`,
+            height: `${motion.bbox.h * 100}%`,
+            boxShadow: '0 0 12px rgba(52,211,153,0.5)',
+          }}
+        />
+      )}
+
       {/* Top Overlay Badge */}
       <div className="absolute top-2 left-2 sm:top-3 sm:left-3 flex items-center gap-2 z-10">
         <span
@@ -209,6 +224,7 @@ export default function CCTV() {
   const [rebindStatus, setRebindStatus] = useState(null);
   const [showDhcpGuide, setShowDhcpGuide] = useState(false);
   const [copiedMac, setCopiedMac] = useState(false);
+  const [motionStates, setMotionStates] = useState({});
 
   const [form, setForm] = useState({
     camera_name: 'CAM 1 - MAIN ENTRANCE (Tapo C200)',
@@ -239,6 +255,20 @@ export default function CCTV() {
   }, []);
 
   const { loading, lastUpdated, refresh } = usePolling(fetchData, 5000);
+
+  // Live motion state (1s) for the tracking overlay + panel
+  useEffect(() => {
+    let active = true;
+    const tick = async () => {
+      try {
+        const res = await api.get('/cameras/motion');
+        if (active) setMotionStates(res.data || {});
+      } catch {}
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => { active = false; clearInterval(t); };
+  }, []);
 
   const handleStartStream = async (camId) => {
     try {
@@ -637,6 +667,7 @@ export default function CCTV() {
               streaming={streamingCameras.has(cam.camera_id)}
               onStartStream={handleStartStream}
               onStopStream={handleStopStream}
+              motion={motionStates[cam.camera_id]}
             />
             <div className="p-3 sm:p-4">
               <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 mb-3">
@@ -1232,6 +1263,9 @@ export default function CCTV() {
           </div>
         </div>
       )}
+
+      {/* Motion AI / PTZ / Night Vision */}
+      <MotionPanel cameras={cameras} motionStates={motionStates} />
     </div>
   );
 }

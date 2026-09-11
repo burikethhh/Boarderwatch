@@ -570,9 +570,15 @@ function RoomTab() {
 // ========== TAB 4: NOTIFICATIONS ==========
 function NotificationTab({ settings, onSave }) {
   const [form, setForm] = useState({
-    twilio_account_sid: settings.twilio_account_sid || '',
-    twilio_auth_token: settings.twilio_auth_token || '',
-    twilio_phone_number: settings.twilio_phone_number || '',
+    email_provider: settings.email_provider || 'auto',
+    mail_from: settings.mail_from || '',
+    brevo_api_key: settings.brevo_api_key || '',
+    resend_api_key: settings.resend_api_key || '',
+    web3forms_key: settings.web3forms_key || '',
+    smtp_host: settings.smtp_host || '',
+    smtp_port: settings.smtp_port || '465',
+    smtp_user: settings.smtp_user || '',
+    smtp_pass: settings.smtp_pass || '',
     sendgrid_api_key: settings.sendgrid_api_key || '',
     sendgrid_from_email: settings.sendgrid_from_email || '',
     notify_motion: settings.notify_motion || '1',
@@ -582,6 +588,11 @@ function NotificationTab({ settings, onSave }) {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testTo, setTestTo] = useState(settings.contact_email || '');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const handleSave = async () => {
     setSaving(true);
@@ -591,37 +602,109 @@ function NotificationTab({ settings, onSave }) {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      // save first so the backend uses the latest values
+      await onSave(form);
+      const res = await api.post('/settings/test-email', { to: testTo });
+      setTestResult(res.data);
+    } catch (e) {
+      setTestResult({ success: false, error: e.response?.data?.error || e.message });
+    }
+    setTesting(false);
+  };
+
+  const provider = form.email_provider;
+
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-medium text-white mb-1">SMS Notifications (Twilio)</h3>
-        <p className="text-text-muted text-[13px]">Configure Twilio for SMS alerts</p>
+        <h3 className="text-base font-medium text-white mb-1">Email Notifications (Free Providers)</h3>
+        <p className="text-text-muted text-[13px]">Choose a free email service. Alerts are sent to the Contact Email in General settings.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <Field label="Account SID" hint="From Twilio Console">
-          <Input value={form.twilio_account_sid} onChange={e => setForm({...form, twilio_account_sid: e.target.value})} placeholder="AC..." />
+        <Field label="Email Provider" hint="Auto = first configured provider">
+          <Select value={provider} onChange={set('email_provider')}>
+            <option value="auto">Auto-detect (recommended)</option>
+            <option value="brevo">Brevo (300 free/day)</option>
+            <option value="resend">Resend (100 free/day)</option>
+            <option value="web3forms">Web3Forms (250 free/month)</option>
+            <option value="smtp">Gmail / SMTP</option>
+            <option value="sendgrid">SendGrid (legacy)</option>
+            <option value="formsubmit">FormSubmit (no signup)</option>
+          </Select>
         </Field>
-        <Field label="Auth Token" hint="From Twilio Console">
-          <Input type="password" value={form.twilio_auth_token} onChange={e => setForm({...form, twilio_auth_token: e.target.value})} placeholder="Your auth token" />
-        </Field>
-        <Field label="Twilio Phone Number" hint="+1XXXXXXXXXX">
-          <Input value={form.twilio_phone_number} onChange={e => setForm({...form, twilio_phone_number: e.target.value})} placeholder="+1 555-123-4567" />
+        <Field label="From Email" hint="Sender address (must be verified with your provider)">
+          <Input type="email" value={form.mail_from} onChange={set('mail_from')} placeholder="alerts@yourdomain.com" />
         </Field>
       </div>
 
-      <div className="border-t border-border pt-6">
-        <h3 className="text-base font-medium text-white mb-1">Email Notifications (SendGrid)</h3>
-        <p className="text-text-muted text-[13px]">Configure SendGrid for email alerts</p>
-      </div>
+      {/* Provider-specific fields */}
+      {(provider === 'brevo' || provider === 'auto') && (
+        <Field label="Brevo API Key" hint="app.brevo.com -> SMTP & API -> API Keys">
+          <Input type="password" value={form.brevo_api_key} onChange={set('brevo_api_key')} placeholder="xkeysib-..." />
+        </Field>
+      )}
+      {(provider === 'resend' || provider === 'auto') && (
+        <Field label="Resend API Key" hint="resend.com -> API Keys">
+          <Input type="password" value={form.resend_api_key} onChange={set('resend_api_key')} placeholder="re_..." />
+        </Field>
+      )}
+      {(provider === 'web3forms' || provider === 'auto') && (
+        <Field label="Web3Forms Access Key" hint="web3forms.com -> create a free access key">
+          <Input type="password" value={form.web3forms_key} onChange={set('web3forms_key')} placeholder="your-access-key" />
+        </Field>
+      )}
+      {(provider === 'smtp' || provider === 'auto') && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field label="SMTP Host" hint="Gmail: smtp.gmail.com">
+            <Input value={form.smtp_host} onChange={set('smtp_host')} placeholder="smtp.gmail.com" />
+          </Field>
+          <Field label="SMTP Port" hint="465 (SSL) or 587 (STARTTLS)">
+            <Input value={form.smtp_port} onChange={set('smtp_port')} placeholder="465" />
+          </Field>
+          <Field label="SMTP Username" hint="Your full email address">
+            <Input value={form.smtp_user} onChange={set('smtp_user')} placeholder="you@gmail.com" />
+          </Field>
+          <Field label="SMTP Password" hint="Gmail: 16-character App Password">
+            <Input type="password" value={form.smtp_pass} onChange={set('smtp_pass')} placeholder="app password" />
+          </Field>
+        </div>
+      )}
+      {provider === 'sendgrid' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field label="SendGrid API Key" hint="Legacy provider">
+            <Input type="password" value={form.sendgrid_api_key} onChange={set('sendgrid_api_key')} placeholder="SG..." />
+          </Field>
+          <Field label="SendGrid From Email" hint="Verified sender email">
+            <Input type="email" value={form.sendgrid_from_email} onChange={set('sendgrid_from_email')} placeholder="alerts@yourdomain.com" />
+          </Field>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <Field label="API Key" hint="From SendGrid Settings">
-          <Input type="password" value={form.sendgrid_api_key} onChange={e => setForm({...form, sendgrid_api_key: e.target.value})} placeholder="SG..." />
-        </Field>
-        <Field label="From Email" hint="Verified sender email">
-          <Input type="email" value={form.sendgrid_from_email} onChange={e => setForm({...form, sendgrid_from_email: e.target.value})} placeholder="alerts@yourdomain.com" />
-        </Field>
+      {/* Test email */}
+      <div className="p-4 bg-surface-2 border border-border rounded-lg space-y-3">
+        <p className="text-white text-sm font-medium">Send a Test Email</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="recipient@email.com" />
+          <Btn variant="secondary" onClick={handleTest} disabled={testing || !testTo}>
+            {testing ? <IconLoader className="w-4 h-4 animate-spin" /> : null}
+            {testing ? 'Sending...' : 'Send Test'}
+          </Btn>
+        </div>
+        {testResult && (
+          <div className={`p-3 rounded-lg border text-xs flex items-center gap-2 ${
+            testResult.success ? 'bg-green-950/20 border-green-500/30 text-green-300' : 'bg-red-950/20 border-red-500/30 text-red-300'
+          }`}>
+            {testResult.success
+              ? `Test email sent via ${testResult.provider || 'provider'}.`
+              : `Failed: ${testResult.error || 'unknown error'}`}
+          </div>
+        )}
+        <p className="text-[11px] text-text-muted">Saving the provider first before sending.</p>
       </div>
 
       <div className="border-t border-border pt-6">

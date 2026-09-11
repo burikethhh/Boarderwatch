@@ -1,5 +1,4 @@
 const { getDatabase } = require('../config/database');
-const twilio = require('./twilio.service');
 const sendgrid = require('./sendgrid.service');
 
 /**
@@ -12,35 +11,46 @@ function createNotification(type, title, message, channel = 'system') {
 }
 
 /**
- * Handle motion detection alert - creates notification + sends SMS/email
+ * Handle motion detection alert - creates notification + sends email
  */
-async function handleMotionAlert(camera) {
+async function handleMotionAlert(camera, state = null, clipPath = null) {
   const db = getDatabase();
   const timestamp = new Date().toLocaleString();
+
+  const score = state && state.pct != null ? state.pct : null;
+  const region = state && state.bbox ? JSON.stringify(state.bbox) : null;
+  const where = state && state.cx != null
+    ? ` (${Math.round(state.cx * 100)}%, ${Math.round((state.cy || 0) * 100)}%)`
+    : '';
 
   // 1. Create system notification
   createNotification(
     'motion_detected',
     `Motion Detected - ${camera.camera_name}`,
-    `${camera.location || 'Unknown location'} detected movement`,
+    `${camera.location || 'Unknown location'} detected movement${where}`,
     'system'
   );
 
-  // 2. Create CCTV alert
-  db.prepare('INSERT INTO cctv_alerts (camera_id, alert_type, description) VALUES (?, ?, ?)')
-    .run(camera.camera_id, 'motion', `${camera.camera_name} - Motion detected at ${camera.location || 'unknown location'}`);
+  // 2. Create CCTV alert (with tracking metadata + evidence clip)
+  db.prepare(
+    'INSERT INTO cctv_alerts (camera_id, alert_type, description, motion_score, motion_region, clip_path) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(
+    camera.camera_id,
+    'motion',
+    `${camera.camera_name} - Motion detected at ${camera.location || 'unknown location'}${where}`,
+    score,
+    region,
+    clipPath
+  );
 
-  // 3. Send SMS
-  const smsResult = await twilio.sendMotionAlert(camera.camera_name, camera.location || 'Unknown', timestamp);
-
-  // 4. Send email
+  // 3. Send email
   const emailResult = await sendgrid.sendMotionAlertEmail(camera.camera_name, camera.location || 'Unknown', timestamp);
 
-  // 5. Log activity
+  // 4. Log activity
   db.prepare('INSERT INTO activity_logs (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)')
-    .run('ALERT', 'camera', camera.camera_id, `Motion alert from ${camera.camera_name}`);
+    .run('ALERT', 'camera', camera.camera_id, `Motion alert from ${camera.camera_name}${score != null ? ` (${score}%)` : ''}`);
 
-  return { notification: true, sms: smsResult, email: emailResult };
+  return { notification: true, email: emailResult, clip: clipPath };
 }
 
 /**
@@ -84,11 +94,6 @@ async function checkLeaseExpiry() {
         `Lease ${lease.lease_number} for ${lease.tenant_name} (Room ${lease.room_number}) expires on ${lease.end_date}`,
         'system'
       );
-
-      // Send SMS if phone available
-      if (lease.phone_number) {
-        await twilio.sendLeaseExpiryAlert(lease.tenant_name, lease.room_number, lease.end_date);
-      }
 
       // Send email if email available
       if (lease.email) {

@@ -9,5 +9,7 @@ router.get('/', ctrl.getSettings);
 router.put('/', requireRole('admin'), ctrl.updateSettings);
 router.post('/rooms/bulk', requireRole('admin'), ctrl.bulkUpdateRooms);
 router.post('/test-camera', requireRole('admin'), ctrl.testCamera);
+router.get('/email-status', ctrl.getEmailStatus);
+router.post('/test-email', requireRole('admin'), ctrl.testEmail);
 
 module.exports = router;

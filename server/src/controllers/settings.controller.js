@@ -1,6 +1,7 @@
 const { getDatabase } = require('../config/database');
 const { BRAND_PRESETS } = require('../config/brandPresets');
 const cameraService = require('../services/camera.service');
+const mail = require('../services/mail.service');
 
 // Get all settings
 exports.getSettings = (req, res) => {
@@ -132,4 +133,24 @@ exports.testCamera = async (req, res) => {
       resolution: result.resolution,
     } : null,
   });
+};
+
+// Email provider status
+exports.getEmailStatus = async (req, res) => {
+  try {
+    res.json(await mail.providerStatus());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// Send a test email
+exports.testEmail = async (req, res) => {
+  const { to } = req.body || {};
+  try {
+    const result = await mail.sendTestEmail(to);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 };

@@ -4,6 +4,7 @@ server/node_modules/
 client/dist/
 server/data/
 server/streams/
+server/recordings/
 server/uploads/
 *.db
 .env
@@ -12,6 +13,9 @@ server/uploads/
 Thumbs.db
 docx_extracted/
 temp.zip
+*.zip
 BoardersWatch_FINAL_FIXED.docx
+BoardersWatch_FINAL_FIXED_*.docx
 iRESERVE1*.docx
 ALPHA T.docx
+AlphaTniEvan.docx

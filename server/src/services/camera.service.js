@@ -54,6 +54,19 @@ async function resolveRtspUrlToIPv4(rtspUrl) {
  */
 async function startStream(camera) {
   const cameraId = camera.camera_id;
+
+  // If the motion engine already holds the single allowed RTSP connection,
+  // reuse its HLS output instead of opening a second one.
+  try {
+    const motion = require('./motion.service');
+    if (motion.isRunning(cameraId)) {
+      const hlsPath = motion.getHlsPath(cameraId);
+      const info = { process: null, shared: true, camera, hlsPath, outputDir: path.dirname(hlsPath), startedAt: new Date(), status: 'streaming' };
+      activeStreams.set(cameraId, info);
+      return info;
+    }
+  } catch {}
+
   if (activeStreams.has(cameraId)) {
     return activeStreams.get(cameraId);
   }
@@ -136,6 +149,11 @@ async function startStream(camera) {
 function stopStream(cameraId) {
   const stream = activeStreams.get(cameraId);
   if (stream) {
+    // Shared HLS is owned by the motion engine - don't kill it, just detach.
+    if (stream.shared) {
+      activeStreams.delete(cameraId);
+      return;
+    }
     try {
       stream.process.kill('SIGTERM');
     } catch {}

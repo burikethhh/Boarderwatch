@@ -10,11 +10,17 @@ router.post('/webhook', ctrl.webhook);
 
 router.use(authenticate);
 
+// Static routes must be declared before '/:id'
 router.get('/discover', requireRole('admin'), ctrl.discover);
 router.get('/probe', requireRole('admin'), ctrl.probeIp);
+router.get('/motion', ctrl.motionStates);
+router.get('/detections', ctrl.activeDetections);
+router.get('/streams/active', (req, res) => res.json(cameraService.getActiveStreams()));
+
 router.get('/', ctrl.list);
-router.get('/:id', ctrl.getById);
 router.post('/', requireRole('admin'), ctrl.create);
+
+router.get('/:id', ctrl.getById);
 router.put('/:id', requireRole('admin'), ctrl.update);
 router.delete('/:id', requireRole('admin'), ctrl.remove);
 router.post('/:id/test', requireRole('admin'), ctrl.testConnection);
@@ -36,12 +42,28 @@ router.post('/:id/stream/stop', requireRole('admin'), (req, res) => {
 });
 
 router.get('/:id/stream/status', (req, res) => {
-  const status = cameraService.getStreamStatus(parseInt(req.params.id));
-  res.json(status);
+  res.json(cameraService.getStreamStatus(parseInt(req.params.id)));
 });
 
-router.get('/streams/active', (req, res) => {
-  res.json(cameraService.getActiveStreams());
-});
+// Motion tracking
+router.get('/:id/motion', ctrl.motionState);
+router.post('/:id/motion/start', requireRole('admin'), ctrl.startDetection);
+router.post('/:id/motion/stop', requireRole('admin'), ctrl.stopDetection);
+router.put('/:id/motion/settings', requireRole('admin'), ctrl.setMotionSettings);
+router.put('/:id/tracking', requireRole('admin'), ctrl.setTracking);
+
+// Evidence clips
+router.get('/:id/clips', ctrl.clips);
+router.post('/:id/clips', requireRole('admin'), ctrl.recordClip);
+
+// PTZ / night vision / smart track
+router.post('/:id/ptz/move', requireRole('admin'), ctrl.ptzMove);
+router.post('/:id/ptz/stop', requireRole('admin'), ctrl.ptzStop);
+router.post('/:id/ptz/calibrate', requireRole('admin'), ctrl.ptzCalibrate);
+router.get('/:id/ptz/presets', ctrl.ptzPresets);
+router.post('/:id/ptz/presets', requireRole('admin'), ctrl.ptzSavePreset);
+router.post('/:id/ptz/presets/goto', requireRole('admin'), ctrl.ptzGoToPreset);
+router.get('/:id/ptz/info', ctrl.ptzInfo);
+router.put('/:id/night-vision', requireRole('admin'), ctrl.nightVision);
 
 module.exports = router;

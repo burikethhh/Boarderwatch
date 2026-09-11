@@ -1,78 +1,26 @@
 const { getDatabase } = require('../config/database');
+const mail = require('./mail.service');
 
-let sgMail = null;
-
-function getClient() {
-  if (sgMail) return sgMail;
-
+function ensureSettings() {
   const db = getDatabase();
   db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
-  const apiKey = db.prepare("SELECT value FROM settings WHERE key = 'sendgrid_api_key'").get();
-
-  if (!apiKey?.value) {
-    return null;
-  }
-
-  try {
-    sgMail = require('@sendgrid/mail');
-    sgMail.setApiKey(apiKey.value);
-    return sgMail;
-  } catch (err) {
-    console.error('SendGrid init failed:', err.message);
-    return null;
-  }
-}
-
-function getFromEmail() {
-  const db = getDatabase();
-  db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
-  const from = db.prepare("SELECT value FROM settings WHERE key = 'sendgrid_from_email'").get();
-  return from?.value || null;
+  return db;
 }
 
 /**
- * Send email notification
- * @param {string} to - Recipient email
- * @param {string} subject - Email subject
- * @param {string} html - HTML body
- * @returns {Promise<{success: boolean, error?: string}>}
+ * Send email notification through the configured provider
+ * (Brevo / Resend / Web3Forms / Gmail SMTP / SendGrid / FormSubmit).
+ * Kept for backwards compatibility with existing callers.
  */
-async function sendEmail(to, subject, html) {
-  const client = getClient();
-  const from = getFromEmail();
-
-  if (!client) {
-    console.log('[SendGrid] Not configured - Email would be sent to:', to);
-    console.log('[SendGrid] Subject:', subject);
-    return { success: false, error: 'SendGrid not configured' };
-  }
-
-  if (!from) {
-    return { success: false, error: 'SendGrid from email not configured' };
-  }
-
-  try {
-    await client.send({
-      to,
-      from,
-      subject,
-      html,
-    });
-
-    console.log(`[SendGrid] Email sent to ${to}: ${subject}`);
-    return { success: true };
-  } catch (err) {
-    console.error(`[SendGrid] Email failed to ${to}:`, err.message);
-    return { success: false, error: err.message };
-  }
+async function sendEmail(to, subject, html, text) {
+  return mail.sendEmail(to, subject, html, text);
 }
 
 /**
  * Send motion detection alert via email
  */
 async function sendMotionAlertEmail(cameraName, location, timestamp) {
-  const db = getDatabase();
-  db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+  const db = ensureSettings();
   const emailSetting = db.prepare("SELECT value FROM settings WHERE key = 'contact_email'").get();
   const notifyMotion = db.prepare("SELECT value FROM settings WHERE key = 'notify_motion'").get();
 
@@ -92,15 +40,14 @@ async function sendMotionAlertEmail(cameraName, location, timestamp) {
     </div>
   `;
 
-  return sendEmail(emailSetting.value, `[BoardersWatch] Motion Detected - ${cameraName}`, html);
+  return mail.sendEmail(emailSetting.value, `[BoardersWatch] Motion Detected - ${cameraName}`, html);
 }
 
 /**
  * Send payment confirmation email
  */
 async function sendPaymentEmail(tenantName, amount, receiptNumber, paymentDate) {
-  const db = getDatabase();
-  db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+  const db = ensureSettings();
   const emailSetting = db.prepare("SELECT value FROM settings WHERE key = 'contact_email'").get();
   const notifyPayment = db.prepare("SELECT value FROM settings WHERE key = 'notify_payment'").get();
 
@@ -113,7 +60,7 @@ async function sendPaymentEmail(tenantName, amount, receiptNumber, paymentDate) 
       <p>A payment has been recorded in the system.</p>
       <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Tenant</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${tenantName}</td></tr>
-        <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Amount</td><td style="padding: 8px; border-bottom: 1px solid #eee;">P${amount.toLocaleString()}</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Amount</td><td style="padding: 8px; border-bottom: 1px solid #eee;">P${Number(amount).toLocaleString()}</td></tr>
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Receipt</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${receiptNumber}</td></tr>
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Date</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${paymentDate}</td></tr>
       </table>
@@ -121,7 +68,7 @@ async function sendPaymentEmail(tenantName, amount, receiptNumber, paymentDate) 
     </div>
   `;
 
-  return sendEmail(emailSetting.value, `[BoardersWatch] Payment Received - ${receiptNumber}`, html);
+  return mail.sendEmail(emailSetting.value, `[BoardersWatch] Payment Received - ${receiptNumber}`, html);
 }
 
 module.exports = { sendEmail, sendMotionAlertEmail, sendPaymentEmail };
